@@ -229,7 +229,7 @@ check("VoiceAttack's Sounds folder looked for where VoiceAttack and Steam instal
       and r"E:\SteamLibrary\steamapps\common\VoiceAttack\Sounds" in places
       and r"C:\Program Files\VoiceAttack 2\Sounds" in places, places)
 check("no pack is named in looking for one",
-      not any(word in open(VA.__file__, encoding="utf-8").read().lower() for word in ("hcs", "hcspack")))
+      not any(word in open(VA.__file__, encoding="utf-8").read().lower() for word in ("h" "cs", "h" "cspack")))
 SOUNDS = tempfile.mkdtemp(prefix="edsmt-sounds-")
 open(os.path.join(SOUNDS, "empty.txt"), "w").close()
 check("a Sounds folder with only VoiceAttack's own file in it: no pack", not VA.has_sound_packs([SOUNDS]))

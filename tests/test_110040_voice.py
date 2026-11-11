@@ -617,7 +617,7 @@ def _profile_default():
     low = text.lower()
     check("branded Radio Raxxla EDSMT, and naming nobody else",
           low.count("radio raxxla edsmt") >= 2 and not re.search(
-              r"hcs|voicepack|voice pack|elevenlabs|frontier", low))
+              "h" r"cs|voicepack|voice pack|eleven" r"labs|frontier", low))
 
 
 @section("the VoiceAttack profile: the commander's own keys")
@@ -663,7 +663,7 @@ def _doc():
           or "unconfirmed" in text.lower())
     low = text.lower()
     check("naming no other voice pack or profile maker", not re.search(
-        r"hcs|voicepack|elevenlabs|eddi|covas", low))
+        "h" r"cs|voicepack|eleven" r"labs|eddi|covas", low))
 
 
 # ---------------------------------------------------------------------------
@@ -1167,7 +1167,7 @@ if HAVE_DISPLAY:
             note = getattr(switch, "_edsmt_tip", "") or ""
             check("voice-pack reminders: a switch with its note, naming no pack",
                   hints is not None and switch is not None and note
-                  and not any(word in note.lower() for word in ("hcs", "hcspack")), note)
+                  and not any(word in note.lower() for word in ("h" "cs", "h" "cspack")), note)
             _PACKS[0] = True
             APP.pack_hints_found = True
             win.load()

@@ -134,8 +134,9 @@ try:
           [c[1:3] for c in calls])
     notes = calls[1][calls[1].index("--notes-file") + 1]
     text = io.open(notes, encoding="utf-8").read()
-    check("the notes file is UTF-8 with this version's CHANGELOG entry and the downloads footer",
-          text.startswith("### ") and "EDSMT-Setup.exe" in text and "﻿" not in text, text[:40])
+    check("the notes file is UTF-8: this version's short notes, the link to the full ones, the downloads",
+          "/CHANGELOG.md" in text and "###" not in text and "EDSMT-Setup.exe" in text
+          and "\ufeff" not in text, text[:40])
     shutil.rmtree(real_upload)
     shutil.copytree(old, real_upload)
     out = io.StringIO()

@@ -72,6 +72,7 @@ import tabstrip as TS
 import uichrome as UC
 import pairing as PR
 import installkey as IK
+import sharehold as HELD
 import planring as PRG
 import richpresence as DRP
 import sitecard as SCD
@@ -3979,6 +3980,8 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                              self.settings.get("inara_enabled", False),
                              self.settings.get("inara_is_being_developed", False))
         self.community = EDO.CommunityClient(self.worker)
+        # Finds marked before the game has said who is playing (1.10041).
+        self.share_hold = HELD.Hold(DATA_DIR)
         # The squadron share's waiting events (1.10040, #301), and when a
         # batch last went.
         self.squad_box = SQ.Box()
@@ -12472,7 +12475,7 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         if CT.is_ranged(record):
             return
         try:
-            self.community.upload(self.watcher.cmdr, [{
+            row = {
                 "system": record["system"], "planet": record["body"],
                 "spot": record["location"], "type": record["commodity"],
                 "rigs": int(float(record["rigs"] or 0)),
@@ -12497,10 +12500,62 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                 # question worth asking. Taken from the journal, never
                 # typed, and simply absent if the game has not said yet.
                 **self.galactic_position(),
-            }])
+            }
+            # Every find goes up with the CMDR name on it. With no name yet
+            # (EDSMT opened before the game said who is playing) it is held
+            # and shared by itself once the name is known (1.10041).
+            if not str(self.watcher.cmdr or "").strip():
+                self.hold_finds([row])
+                return
+            self.community.upload(self.watcher.cmdr, [row])
         except Exception:
             pass
         self.verify_own(record)
+
+    def hold_finds(self, rows):
+        """Keep finds that have no CMDR name to go up with yet. How many
+        were new to the hold."""
+        if attr(self, "share_hold") is None:
+            return 0
+        added = self.share_hold.add(rows)
+        if added:
+            self.say("Holding %s until the game says who is playing - shared "
+                     "by itself then."
+                     % ("this find" if added == 1 else "%d finds" % added), AMBER)
+        return added
+
+    def send_held_finds(self):
+        """Share the held finds now that the name is known. How many went."""
+        community = attr(self, "community")
+        cmdr = str(getattr(attr(self, "watcher"), "cmdr", "") or "").strip()
+        if attr(self, "share_hold") is None or not self.share_hold.count or not cmdr:
+            return 0
+        if community is None or not getattr(community, "ready", False):
+            return 0
+        if not self.settings.get("community_auto_share", True):
+            return 0
+        rows = self.share_hold.take()
+        sent = 0
+        for start in range(0, len(rows), IMPORT_SHARE_BATCH):
+            chunk = rows[start:start + IMPORT_SHARE_BATCH]
+            try:
+                went = community.upload(cmdr, chunk)
+            except Exception as exc:
+                self.trouble("Sharing held finds", exc)
+                went = False
+            if not went:
+                self.share_hold.add(rows[start:])
+                break
+            sent += len(chunk)
+        if sent:
+            self.say("Shared %s that waited for your CMDR name."
+                     % ("1 find" if sent == 1 else "%d finds" % sent), GREEN)
+        return sent
+
+    def held_finds_check(self, state, now=None):
+        """On a tick: send what was held, once the journal has the name."""
+        del state, now
+        self.send_held_finds()
 
     def verify_own(self, record):
         """A staff commander's own finds go up verified.
@@ -13258,6 +13313,11 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         if not self.settings.get("community_auto_share", True):
             return 0
         rows = IMP.community_rows(records)
+        if not str(getattr(attr(self, "watcher"), "cmdr", "") or "").strip():
+            # No CMDR name yet (the game has not been run): held, and shared
+            # by themselves once the journal says who is playing.
+            self.hold_finds(rows)
+            return 0
         sent = 0
         for start in range(0, len(rows), IMPORT_SHARE_BATCH):
             chunk = rows[start:start + IMPORT_SHARE_BATCH]
@@ -13275,7 +13335,7 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         Each is separate and none of them may stop the tick."""
         now = time.time() if now is None else now
         for step in (self.arrival_check, self.regrowth_check,
-                     self.refine_prompt_expire):
+                     self.refine_prompt_expire, self.held_finds_check):
             try:
                 step(state, now)
             except Exception as exc:
@@ -13882,7 +13942,7 @@ SETTING_TIPS = {
                    "different in the ship, in the Rhino and on foot, on their own.",
     "voice_rate": "How quickly Windows' speech reads the lines. A recording plays at "
                   "its own speed.",
-    "discord_presence": "Rich Presence: your Discord profile says you are playing EDSMT and "
+    "discord_presence": "Rich Presence: your Discord profile says Playing Surface Mining with EDSMT and "
                         "what you are mining, with Cr/hr and rigs down, through the "
                         "Discord app on this PC. Streamer mode keeps the body and "
                         "system off it. Off to begin with.",
@@ -14604,7 +14664,7 @@ class SettingsWindow(ctk.CTkToplevel):
                      "NEXT RIG on the map and scope")
 
         body = self.pages["Rigs"]
-        self._section(body, "Wing link (beta)",
+        self._section(body, "Wing link",
                       "Mining one body with friends - or crew off one ship "
                       "with more than one Rhino? Everyone switches this on "
                       "and types the same code, and each of you sees the "
@@ -14619,7 +14679,7 @@ class SettingsWindow(ctk.CTkToplevel):
         self._switch(body, "wing_auto", "Link with my in-game wing by itself")
         self._switch(body, "wing_split_pins",
                      "Split the rig plan's pins between the wing")
-        self._switch(body, "wing_link", "Wing link (beta): share my Rhino and "
+        self._switch(body, "wing_link", "Wing link by code: share my Rhino and "
                                         "rigs with my wing")
         self._entry(body, "wing_code", "Wing code (6 letters and digits)",
                     "the same code for everyone")

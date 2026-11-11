@@ -81,13 +81,13 @@ def _find():
           GB.bindings_folder().endswith(os.path.join("Frontier Developments", "Elite Dangerous",
                                                      "Options", "Bindings")), GB.bindings_folder())
     folder = folder_with({
-        "HCS Custom.4.2.binds": binds("HCS Custom", (("Mouse", "Mouse_1", []), NONE), (("Mouse", "Mouse_2", []), NONE)),
+        "Pack Custom.4.2.binds": binds("Pack Custom", (("Mouse", "Mouse_1", []), NONE), (("Mouse", "Mouse_2", []), NONE)),
         "Custom.4.2.binds": binds("Custom", (("Mouse", "Mouse_1", []), ("334444B0", "Joy_1", [])),
                                   (("Mouse", "Mouse_2", []), ("T16000M", "Joy_1", []))),
         "Custom.4.1.binds": binds("Custom", (("Keyboard", "Key_Z", []), NONE), (NONE, NONE), minor=1),
-    }, start=["HCS Custom", "HCS Custom", "Custom", "HCS Custom"])
+    }, start=["Pack Custom", "Pack Custom", "Custom", "Pack Custom"])
     check("StartPreset.4.start: one preset per line, in order",
-          GB.active_presets(folder) == ["HCS Custom", "HCS Custom", "Custom", "HCS Custom"])
+          GB.active_presets(folder) == ["Pack Custom", "Pack Custom", "Custom", "Pack Custom"])
     check("the newest version of a preset's file", GB.binds_file(folder, "Custom").endswith("Custom.4.2.binds"))
     found = GB.fire_bindings(folder)
     check("the SRV line (the third) decides which file", found["preset"] == "Custom"

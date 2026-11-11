@@ -24,7 +24,8 @@ Free and open source (GPL-3.0). Not affiliated with Frontier Developments.
 - **Survey** — log a mining location, set its border, and follow numbered
   waypoints until the ground is swept.
 - **Rigs** — every rig on the map, the scope and the compass, spacing rings,
-  NEXT RIG to the nearest legal spot, and warnings before one is lost.
+  NEXT RIG to the nearest legal spot, a planning circle that keeps every rig
+  in reach, and warnings before one is lost.
 - **Selling** — the one station that takes your whole hold, within the jumps
   you choose, with every price aged and stale ones marked.
 - **Powerplay** — what selling in each system does for your Power, judged by
@@ -113,4 +114,6 @@ the version from the title bar.
 ## Licence
 
 Copyright (C) 2026 Radio Raxxla. Released under the GNU General Public
-License version 3 only (GPL-3.0-only). See [LICENSE](LICENSE).
+License version 3 only (GPL-3.0-only). See [LICENSE](LICENSE). The licences
+of the libraries EDSMT is built with are in
+[THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt).

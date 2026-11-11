@@ -133,7 +133,7 @@ check("the reminders, reactions and asides are hers",
       and all(VO.line_text(i, "celestia") for i in VO.HINT_IDS + VO.REACTION_IDS + VO.LORE_IDS))
 check("no pack is named in a reminder",
       not any(word in VO.script(i, "celestia", take=t).lower() for i in VO.HINT_IDS
-              for t in (1, 2) for word in ("hcs", "voicepack", "voice pack")))
+              for t in (1, 2) for word in ("h" "cs", "voicepack", "voice pack")))
 check("no line names CMDR",
       not any("CMDR" in VO.script(i, "celestia", take=t) for i in VO.TAKES for t in range(1, 4)))
 

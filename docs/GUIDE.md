@@ -134,8 +134,8 @@ Depleted at the same time: rich, empty today, worth coming back to.
 **UPDATE** sits beside MARK DEPOSIT. Standing on a deposit you have already
 marked, it writes what the boxes say — the Amount going down as you work
 it, a rig count you now know — onto that deposit instead of adding a second
-copy. A blank box changes nothing, and the note is stamped with when. If
-you share, the shared copy is updated too. MARK asks first if you already
+copy. A blank box changes nothing, and the note is stamped with when. The
+copy on the community map is updated too. MARK asks first if you already
 have that commodity marked within 100 m — press MARK again within a few
 seconds to add it as a separate deposit anyway. And if a **different**
 commodity is already marked on the spot you are standing on — the box said
@@ -189,8 +189,9 @@ One row per thing; the first column, `kind`, says which (`export`,
 the file's format number.
 
 The position and the timestamp are shown but not editable. If a deposit
-really is in the wrong place, delete it and mark it again. Editing is local:
-a correction to something already shared does not change the shared copy.
+really is in the wrong place, delete it and mark it again. A correction goes
+to the community map too: the amount, density and rig count there are put
+right.
 
 The map works with Elite closed. It falls back to the last body you recorded
 on and centres on the finds themselves.
@@ -373,7 +374,7 @@ the community map for everything already shared there. Those finds are drawn
 as diamonds — on the map, the scope and the mineral deposit card — so you
 can tell at a glance what is yours and what somebody else logged. Click one
 and it says who shared it and when. A shared find sitting on top of one of
-your own is shown once, as yours. Settings has the switch.
+your own is shown once, as yours.
 
 ---
 
@@ -489,7 +490,7 @@ most rigs, newest first — shows on the scope as **SHARED PIN** pins, with the
 same guidance as your own planner pins. Settings → Rigs turns the pins off.
 Your commander name goes with a layout.
 
-### The wing link (beta)
+### The wing link
 
 Mining one body with friends, or crew off one ship with more than one Rhino?
 Switch on **Settings → Wing link**, and everyone types the same
@@ -555,7 +556,8 @@ with by-products beside them (not added in). Press **MINED OUT** when it is
 empty and that figure is filed as what it **holds**; work it again after it
 has grown back and the details say about how much is **left**. A worked-out
 deposit says how long ago it was worked out. How fast deposits grow back is
-not known, so EDSMT does not guess.
+being measured from commanders who go back and check; until enough have,
+EDSMT does not guess.
 
 ### Sharing one find
 
@@ -1030,7 +1032,8 @@ ping anyone: an `@everyone` typed into a note is just text. Your commander
 name is on the posts, since they are your channels.
 
 **Show your Rhino session on your Discord profile** (Settings → Discord, off
-to start with) is Rich Presence: your profile says you are playing EDSMT,
+to start with) is Rich Presence: your profile says Playing Surface Mining
+with EDSMT,
 what you are mining, the Cr/hr and the rigs down, with how long the session
 has run, and buttons to get EDSMT and join the Radio Raxxla Discord. It goes
 through the Discord app on this PC, at most once every 15 seconds, and comes

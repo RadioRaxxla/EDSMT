@@ -30,6 +30,8 @@ import time
 import urllib.error
 import urllib.request
 
+import certstore as CS
+
 TAG = "eddn"
 SETTING = "eddn_upload"
 DEFAULT = True
@@ -74,14 +76,20 @@ tL4ndQavEi51mI38AjEAi/V3bNTIZargCyzuFJ0nN6T5U6VR5CmD1/iQMVtCnwr1
 """
 
 
+_made = []
+
+
 def context():
-    """The system's trusted roots, plus ISRG Root X2."""
-    ctx = ssl.create_default_context()
-    try:
-        ctx.load_verify_locations(cadata=ISRG_ROOT_X2)
-    except ssl.SSLError:
-        pass
-    return ctx
+    """The system's trusted roots that are still in date, plus ISRG Root X2.
+    Made on first use and kept."""
+    if not _made:
+        ctx = CS.context()
+        try:
+            ctx.load_verify_locations(cadata=ISRG_ROOT_X2)
+        except ssl.SSLError:
+            pass
+        _made.append(ctx)
+    return _made[0]
 
 
 def _epoch(text):

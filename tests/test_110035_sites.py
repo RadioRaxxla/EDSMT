@@ -704,6 +704,9 @@ if HAVE_DISPLAY:
         app.update_idletasks(); app.update(); time.sleep(0.02)
     LINK = Link()
     app.community = LINK
+    # The game has said who is playing: from 1.10041 nothing is shared until
+    # it has (a find marked before then is held, and sent once it does).
+    app.watcher.cmdr = "Bea Quarry"
     A.confirm = lambda *args, **kwargs: True
 
     def pump(times=4):

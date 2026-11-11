@@ -25,7 +25,7 @@ import tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "build"))
-from release_notes import entry, FOOTER  # noqa: E402
+from release_notes import brief, entry  # noqa: E402
 
 REPO_NAME = "TheAnnouncer/EDSMT"
 FILES = ("EDSMT-Setup.exe", "EDSMT.exe", "EDSMT-source.zip")
@@ -102,7 +102,7 @@ def main(argv, run=subprocess.run, gh="gh"):
     notes = tempfile.NamedTemporaryFile("w", encoding="utf-8", newline="\n",
                                         suffix=".md", delete=False)
     with notes:
-        notes.write(entry(version) + "\n" + FOOTER)
+        notes.write(brief(entry(version), version))
     todo = commands(version, exists, notes.name, upload)
     for cmd in todo:
         cmd[0] = gh

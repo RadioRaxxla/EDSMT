@@ -8,8 +8,10 @@ the rules a change has to follow, and what will not be merged.
     RUN.bat
 
 On Windows this finds Python, creates `.venv`, installs `requirements.txt` and
-starts the app. The only runtime dependency is `customtkinter`; the plan view
-is drawn on a plain canvas.
+starts the app. On Linux, `RUN.sh` does the same. The runtime dependencies are
+`customtkinter`, `Pillow` and, on Linux only, `python-xlib`; the plan view is
+drawn on a plain canvas. `THIRD-PARTY-NOTICES.txt` carries their licences and
+is made again with `python build/notices.py` when one of them changes.
 
 ## Run the tests
 
@@ -57,17 +59,24 @@ tests, fetches Inno Setup if it is missing, and writes to `upload/`:
     EDSMT.exe          portable build
     EDSMT-source.zip   source for the release
 
-Pushing a version tag runs `.github/workflows/build.yml`, which builds the same
-three files on a Windows runner and attaches them to a GitHub release.
+Pushing a version tag runs `.github/workflows/build.yml`, which builds on a
+Windows runner as a check and builds the Linux file,
+`EDSMT-linux-x86_64.tar.gz`, which it attaches to the GitHub release. The
+Windows downloads and the source on a release are the ones built and signed
+for the update check on the maintainer's build machine.
 
 ## What will not be merged
 
 - **Anything that weakens update integrity.** Updates come from
-  radioraxxla.com over HTTPS only, must match the size and SHA-256 published in
-  `version.json`, are checked again at install, and run only when the user
-  presses INSTALL UPDATE. `tests/test_update.py` covers each of these.
-- **Uploading anything beyond finds and prices.** Nothing else on a user's PC
-  leaves it, and the commander name stays optional.
+  radioraxxla.com over HTTPS only, from a signed `version.json`, must match
+  the size and SHA-256 it publishes, are checked again at install, and run
+  only when the user presses INSTALL UPDATE. `tests/test_update.py` covers
+  each of these.
+- **Sending anything `SECURITY.md` does not list.** What leaves a user's PC is
+  written there, and a change that adds to it says so there.
+- **A find without the CMDR name.** Every find is shared with the name the
+  game's journal gives; there is no switch for it.
+- **Anything that writes to the game's files or sends input to the game.**
 - **A dependency that brings in another GUI or plotting toolkit.**
 
 ## Reporting bugs and vulnerabilities
@@ -77,19 +86,23 @@ Report vulnerabilities privately, as described in `SECURITY.md`.
 
 ## Source tree
 
-    edsmt.py       the main window
+    edsmt.py       the main window: thin wiring over the modules below
+    journal.py     Status.json and journal reading
     survey.py      locations, deposits and geometry
     planview.py    plan view maths
     overlay.py     in-game overlay boxes
-    journal.py     Status.json and journal reading
-    edonline.py    Inara, the community client and ranking
+    edonline.py    Inara, the community client and the update check
     rigplan.py     rig planner
     coverage.py    survey coverage per body
     bodybook.py    bodies per system (Where to land)
-    build/         PyInstaller and Inno Setup configuration
+    *.py           one small module for each other job (voice.py, finder.py,
+                   streamout.py and so on); each says what it is at the top
+    build/         PyInstaller, Inno Setup and release tooling
     tests/         headless test suite
+    docs/          the guide
     site/          download page
     sounds/        rig warning sounds
+    images/        the badge and pictures the app shows
     .github/       build workflow and issue templates
 
 ## Licence

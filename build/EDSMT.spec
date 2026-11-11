@@ -33,6 +33,8 @@ datas += [(os.path.join(ROOT, "images", name), "images")
           for name in ("rhino-about.png", "edsmt-badge-256.png", "edsmt-badge-512.png")]
 # The patch notes: the welcome window lists this version's headlines.
 datas += [(os.path.join(ROOT, "CHANGELOG.md"), ".")]
+# The licences of what EDSMT is built with travel with every copy (1.10041).
+datas += [(os.path.join(ROOT, "THIRD-PARTY-NOTICES.txt"), ".")]
 # The Basic voice line pack (1.10040): one .wav per line, found by
 # voice.recording() under voice/<theme>/ in the bundle - voice/ship_computer
 # for the Ship computer, voice/celestia/<ship|srv|foot> for Celestia - each
@@ -94,6 +96,9 @@ hiddenimports += ["voice", "sonar", "voiceattack"]
 # 1.10040: the big tables on the tree view, the journal read in chunks
 # off the window's thread, and the journal's own checks on a session.
 hiddenimports += ["tableview", "catchup", "journalrows"]
+# 1.10041: finds held until the CMDR name is known, and the certificates
+# HTTPS is checked against.
+hiddenimports += ["sharehold", "certstore"]
 
 a = Analysis([os.path.join(ROOT, "edsmt.py")], pathex=[ROOT],
              binaries=[], datas=datas,

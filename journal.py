@@ -5,26 +5,10 @@ The game leaves two things in its Saved Games folder: Status.json, rewritten
 several times a second with where you are, and Journal.*.log, appended to as
 things happen. Between them the commander never has to type a coordinate.
 
-None of this is obvious, and most of it was learned the hard way - see
-JOURNAL-NOTES.md. The four that cost a release each:
-
-  the sticky EOF flag     a Python file object that has reached the end of a
-                          file keeps returning nothing even as the game
-                          appends to it. Track the offset, seek to the end
-                          and back before every read, unbuffered.
-
-  Status.json timestamps  never skip a read because mtime looks unchanged.
-                          Windows does not reliably refresh a directory entry
-                          while another process is rewriting the file.
-
-  order of precedence     journal first, Status.json second. Status.json
-                          carries the current body and is the fresher of the
-                          two, so it gets the last word.
-
-  torn lines              the game can be caught mid-write. Hold an
-                          incomplete trailing line back and glue it to the
-                          next read, or the event is lost when the rest of
-                          it arrives.
+The reader only ever reads: it never writes to, renames or locks anything
+in the game's folder. It keeps up with the journal as the game appends to
+it, takes the journal first and Status.json second, and never acts on an
+event the game has only half written.
 """
 # ===========================================================================
 #  Elite Dangerous journal reader
@@ -497,6 +481,84 @@ def linux_journal_dirs(home, environ=None):
             if os.path.isdir(path) and real not in [os.path.realpath(p) for p in out]:
                 out.append(path)
     return out
+
+
+# Who is playing is in a journal's first lines, and only in a game session's
+# first part: a file that carries on from an earlier part (the game starts a
+# new one every 500,000 lines) never says. So the reader, started on such a
+# file, looks back for the part that does (1.10041).
+IDENTITY_HEAD = 256 * 1024      # bytes read from the top of an earlier part
+IDENTITY_FILES = 12             # earlier files looked at, at most
+
+
+def _part_and_name(path):
+    """(part number, commander name) from the top of one journal file; a part
+    of 0 means the file could not be read or has no header there."""
+    try:
+        with open(path, "rb") as handle:
+            data = handle.read(IDENTITY_HEAD)
+    except OSError:
+        return 0, ""
+    lines = data.split(b"\n")
+    if len(data) >= IDENTITY_HEAD:
+        lines = lines[:-1]          # the last line may be cut short
+    part, name = 0, ""
+    for raw in lines:
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            event = json.loads(raw.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            continue
+        if not isinstance(event, dict):
+            continue
+        kind = event.get("event")
+        if kind == "Fileheader":
+            try:
+                part = int(event.get("part") or 1)
+            except (TypeError, ValueError):
+                part = 1
+        elif kind in IDENTITY_EVENTS:
+            name = str(event.get("Commander") or event.get("Name") or name)
+    return part, name
+
+
+def earlier_commander(folder, current):
+    """Who is playing, read from the earlier parts of the session the journal
+    file `current` carries on from. "" when it cannot be told - and never a
+    name from another session: each file looked at must be a lower-numbered
+    part than the one after it. Reads only; changes nothing."""
+    try:
+        names = [f for f in os.listdir(folder) if JOURNAL_PATTERN.match(f)]
+    except OSError:
+        return ""
+    stamped = []
+    for f in names:
+        path = os.path.join(folder, f)
+        try:
+            stamped.append((os.stat(path).st_mtime, os.path.abspath(path)))
+        except OSError:
+            continue
+    stamped.sort()
+    paths = [path for _when, path in stamped]
+    try:
+        index = paths.index(os.path.abspath(current))
+    except ValueError:
+        return ""
+    part, name = _part_and_name(current)
+    if name:
+        return name
+    for path in reversed(paths[max(0, index - IDENTITY_FILES):index]):
+        earlier, name = _part_and_name(path)
+        if not earlier or earlier >= part:
+            return ""
+        if name:
+            return name
+        if earlier <= 1:
+            return ""
+        part = earlier
+    return ""
 
 
 def newest_journal(folder):
@@ -1350,6 +1412,10 @@ class JournalWatcher:
             if name == "Fileheader":
                 self.game_version = str(event.get("gameversion") or "")
                 self.journal_part = int(event.get("part") or 1)
+                # A later part never names the commander: read it from the
+                # part that does, so nothing is shared without the name.
+                if self.journal_part > 1 and not self.cmdr and self._journal:
+                    self.cmdr = earlier_commander(self.directory, self._journal)
                 continue
 
             # At 500k lines the game closes the journal and opens the next

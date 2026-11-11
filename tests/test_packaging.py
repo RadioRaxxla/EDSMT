@@ -377,8 +377,9 @@ check("and the PyInstaller that understands that is the one installed",
       and '"pyinstaller>=6.0,<7"' in read(".github", "workflows", "build.yml"))
 _iss_files = [l for l in read("build", "installer.iss").splitlines()
               if l.startswith("Source:")]
-check("the installer puts only the program, README and LICENCE on a PC",
-      len(_iss_files) == 3 and all(("dist" in l or "README.md" in l or "LICENSE" in l)
+check("the installer puts only the program, README, LICENCE and the libraries' licences on a PC",
+      len(_iss_files) == 4 and all(("dist" in l or "README.md" in l or "LICENSE" in l
+                                    or "THIRD-PARTY-NOTICES.txt" in l)
                                    for l in _iss_files), _iss_files)
 check("the source zip is made from the files git tracks, so nothing else can slip in",
       "git ls-files" in read("BUILD.bat"))

@@ -43,11 +43,17 @@ import urllib.request
 from math import radians, sin, cos, sqrt, pi
 
 import installkey as IK
+import certstore as CS
+
+# Every HTTPS request below is checked against the system's certificates that
+# are still in date (1.10041): Windows keeps the ones that have run out, and
+# one of those in the way had a site with a good certificate refused.
+CS.install()
 
 HEALTH_TAG = "health"
 
 APP_NAME = "EDSMT"
-APP_VERSION = "1.10040"
+APP_VERSION = "1.10041"
 # The worker tag the bodies of a system come back under.
 BODIES_TAG = "bodies"
 # How a deposit was rigged (#218): sent, and the best ones read back.
@@ -1137,6 +1143,10 @@ class CommunityClient:
 
     def upload(self, cmdr: str, deposits: list[dict]) -> bool:
         if not self.ready or not deposits:
+            return False
+        # Every find goes up with the commander's name on it (1.10041): with
+        # no name yet nothing is sent, and the caller holds the find.
+        if not str(cmdr or "").strip():
             return False
         payload = self.envelope(cmdr, deposits, self.share_name)
         url = f"{self.base_url}/v1/deposits"

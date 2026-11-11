@@ -166,11 +166,12 @@ jobs:
       - name: Build the single file
         run: pyinstaller build/EDSMT-onefile.spec --noconfirm --distpath dist --workpath build/work
 
-      # One folder in one archive: the program, the README and the licence.
+      # One folder in one archive: the program, the README, the licence and
+      # the licences of what it is built with.
       - name: Pack the download
         run: |
           mkdir -p upload/EDSMT-linux-x86_64
-          cp dist/EDSMT README.md LICENSE upload/EDSMT-linux-x86_64/
+          cp dist/EDSMT README.md LICENSE THIRD-PARTY-NOTICES.txt upload/EDSMT-linux-x86_64/
           tar -C upload -czf upload/EDSMT-linux-x86_64.tar.gz EDSMT-linux-x86_64
           rm -r upload/EDSMT-linux-x86_64
           sha256sum upload/EDSMT-linux-x86_64.tar.gz

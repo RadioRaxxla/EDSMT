@@ -4,6 +4,52 @@ The version is in the app's title bar. Quote it on a bug report.
 
 ---
 
+## 1.10041
+
+Fixes only. Every find carries its CMDR name, Inara updates work again on PCs
+where they had stopped, and updates to a deposit are seen on the community
+map as finds are.
+
+### Fixed — every find carries your CMDR name, and Inara updates work again
+
+- **A find never goes up without your CMDR name.** EDSMT opened part-way
+  through a long game session could be reading a journal file that never
+  says who is playing, and what it shared then had no name on it. It now
+  looks back to the file that does say. A find marked before the name is
+  known is held - "Holding this find until the game says who is playing" -
+  kept if EDSMT is closed, and shared by itself the moment the name is
+  known. From this version the community map takes no find without a name.
+- **Inara updates that failed with "certificate has expired".** Nothing was
+  wrong with Inara or with your key. Windows keeps certificates after they
+  run out, and on a PC that still held an out-of-date copy of one, EDSMT
+  was handed that copy in place of the good one the site sends. It now
+  leaves the run-out ones aside. The same fault could stop mining locations
+  reaching EDDN.
+
+### Changed
+
+- **Updates are seen on the community map.** Press UPDATE or MINED OUT on a
+  deposit that is already on the map, or put its rigs or Density right, and
+  it is posted in the Radio Raxxla Discord with your CMDR name and what
+  changed, and kept in the map's live list. Until now only a deposit's
+  first find was shown. This is on the map's side, so it works with the
+  version you already have.
+- **The licences of the libraries EDSMT is built with** go with every copy,
+  in `THIRD-PARTY-NOTICES.txt`: beside the program after an install, inside
+  the single-file build, in the Linux download and in the source.
+- **A release page on GitHub is short**: what the version is, in a few
+  lines, and a link to these notes.
+- **The wing link is no longer called beta** in Settings or the guide: it
+  has been the finished thing since 1.10040.
+- **The documents say what EDSMT does today.** SECURITY.md lists everything
+  that leaves your PC and the one thing that listens on it (the OBS page,
+  on your PC only, when you switch it on), and that updates are signed.
+  The guide no longer says a correction stays on your PC (it goes to the
+  community map), nor that a switch hides other commanders' finds (there
+  is none).
+
+---
+
 ## 1.10040
 
 ### New — a welcome window
@@ -18,6 +64,7 @@ The version is in the app's title bar. Quote it on a bug report.
   **Help** on the top bar and **Welcome again** in Settings → About open it
   any time. It replaces the first-run notice and says the same thing about
   the community map.
+
 ### New — the wing link: linked from your in-game wing, one shared survey, pins split
 
 - **Linked with your wing in the game, no code to type.** Settings → Rigs →

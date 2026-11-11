@@ -106,6 +106,11 @@ CHECKS = [
     ("1.10040: the big tables on the tree view, 2,000 rows drawn and scrolled in a budget", "test_110040_tables.py"),
     ("1.10040: the journal read in chunks off the window's thread, timed", "test_110040_speed.py"),
     ("1.10040: the journal's own checks on a session - transfers, Statistics, ejected tonnes, trace, prices", "test_110040_journal_rows.py"),
+    ("1.10041: a find never leaves without the CMDR name - looked up, held, then sent", "test_110041_nameless.py"),
+    ("1.10041: HTTPS no longer refused over a run-out certificate left in the Windows store", "test_110041_certs.py"),
+    ("1.10041: the libraries' licences go with every form EDSMT ships in", "test_110041_notices.py"),
+    ("1.10041: a release page is short, and links to the full patch notes", "test_110041_release_notes.py"),
+    ("1.10041: the wing link is not called beta; Rich Presence in Discord's own words", "test_110041_words.py"),
     ("the real toolkit, on a real display", "test_gui.py"),
 ]
 # More checks kept on this machine only: EDSMT_EXTRA_CHECKS names one or more
