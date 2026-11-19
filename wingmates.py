@@ -251,3 +251,55 @@ def crew_after(crew, near, present):
     Somebody driving off to the ship and back keeps their pins."""
     return (({fold(n) for n in crew or []} | {fold(n) for n in near or []})
             & {fold(n) for n in present or []}) - {""}
+
+
+# A wingmate's rig they have picked up stays in the game for everyone else on
+# the planet until they leave it (seen in play, 12 Nov). So it stays on the
+# map too, marked collected, until you leave the body: at most this many for
+# each wingmate, the newest kept.
+COLLECTED_MAX = 12
+
+
+def _rig_key(rig):
+    return (int(rig.get("n") or 0), round(float(rig["lat"]), 6), round(float(rig["lon"]), 6))
+
+
+def keep_collected(kept, place, mates, most=COLLECTED_MAX):
+    """Each wingmate's rigs as the link reports them, with the ones they
+    have since picked up kept as "collected" rather than dropped silently.
+
+    `kept` is what the last call returned (None to begin), `place` where
+    you are - (system, body) - and `mates` the wingmates there, each with
+    "name" and "rigs" ([{"n", "lat", "lon"}]). Returns (kept, mates): the
+    same mates as copies, each with "rigs" (the live ones that could be
+    read) and "collected". Another place forgets everything, as the game
+    does when you leave the planet."""
+    if not isinstance(kept, dict) or kept.get("place") != place \
+            or not isinstance(kept.get("seen"), dict):
+        kept = {"place": place, "seen": {}}
+    seen = kept["seen"]
+    out = []
+    for mate in mates or []:
+        name = fold(mate.get("name"))
+        live = []
+        for rig in mate.get("rigs") or []:
+            try:
+                live.append((_rig_key(rig), rig))
+            except (KeyError, TypeError, ValueError, AttributeError):
+                continue
+        before = seen.get(name) if isinstance(seen.get(name), dict) else {}
+        now = dict(before)
+        live_keys = set()
+        for key, rig in live:
+            live_keys.add(key)
+            now[key] = dict(rig, collected=False)
+        for key, rig in before.items():
+            if key not in live_keys:
+                now[key] = dict(rig, collected=True)
+        gone = [key for key, rig in now.items() if rig.get("collected")]
+        for key in gone[:max(0, len(gone) - most)]:
+            del now[key]
+        seen[name] = now
+        out.append(dict(mate, rigs=[rig for _key, rig in live],
+                        collected=[rig for rig in now.values() if rig.get("collected")]))
+    return kept, out

@@ -203,7 +203,9 @@ with open(A.SETTINGS_FILE, "w", encoding="utf-8") as _f:
     json.dump({"asked_to_share": True, "welcome_seen_version": A.APP_VERSION, "tour_done": True,
                "journal_dir": JOURNALS, "overlay_enabled": False}, _f)
 
-check("a new install takes the theme's own marker colour", A.DEFAULT_SETTINGS.get("srv_colour") == "")
+# 1.10042: white on a new install ("my location is most important"); the
+# theme's own is still there to pick.
+check("a new install is drawn in white", A.DEFAULT_SETTINGS.get("srv_colour") == "#ffffff")
 
 app = A.EDSMT()
 app.geometry("1600x1000+0+0")
@@ -238,7 +240,7 @@ def map_fills():
 def _map():
     theme = app.settings.get("app_theme") or "cockpit"
     got = map_fills()
-    check("the theme's own to begin with", got == [OV.srv_colour(theme)], (got, theme))
+    check("white to begin with (1.10042)", got == ["#ffffff"], (got, theme))
 
 
 @section("the app: Settings -> Theme has the colour, and a pick is kept")
@@ -247,8 +249,9 @@ def _settings():
     settle(1.0)
     window = [w for w in app.winfo_children() if isinstance(w, A.SettingsWindow)][-1]
     box, options, _patch = window.colours["srv_colour"]
-    check("on the Theme tab, the theme's own first",
-          options[0] == ("Theme's own", "") and str(box.get()) == "Theme's own", (options[:2], box.get()))
+    # 1.10042: the box opens on White, which a new install is drawn in.
+    check("on the Theme tab, the theme's own first in the list, White picked",
+          options[0] == ("Theme's own", "") and str(box.get()) == "White", (options[:2], box.get()))
     box.set("#ff00aa")
     window.save()
     settle(0.6)

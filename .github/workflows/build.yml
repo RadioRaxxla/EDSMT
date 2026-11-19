@@ -9,8 +9,13 @@
 #     git tag v1.10035
 #     git push origin v1.10035
 #
-# Every other push just builds and keeps the files as artifacts for 30 days,
-# so a broken build is caught before a release, not during one.
+# Every other push and every pull request builds and tests but keeps no files
+# (1.10042): the build is checked, nothing is stored. The files are kept, for
+# 30 days, only for a tag and for a run started by hand from the Actions page.
+# So what a signing service signs is what CI built from the tag: the two
+# Windows programs, EDSMT-Setup.exe and EDSMT.exe, in the artifact
+# EDSMT-windows-programs, and the Linux file in EDSMT-linux. A signed file has
+# a new checksum, so version.json is written after signing, on the desk.
 
 name: build
 
@@ -127,7 +132,23 @@ jobs:
           Copy-Item site\*.jpg upload\ -Force
           Get-ChildItem upload | Format-Table Name, Length
 
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6
+      # Kept only for a tag or a run started by hand (see the top). The two
+      # programs have an artifact of their own: those are the files a
+      # signing service takes.
+      - name: Keep the two Windows programs
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6
+        with:
+          name: EDSMT-windows-programs
+          path: |
+            upload/EDSMT-Setup.exe
+            upload/EDSMT.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Keep everything the Windows build made
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6
         with:
           name: EDSMT-windows
           path: upload/*
@@ -177,10 +198,14 @@ jobs:
           sha256sum upload/EDSMT-linux-x86_64.tar.gz
           ls -l upload
 
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6
+      # Kept only for a tag or a run started by hand, as the Windows files.
+      - name: Keep the Linux file
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6
         with:
           name: EDSMT-linux
           path: upload/EDSMT-linux-x86_64.tar.gz
+          if-no-files-found: error
           retention-days: 30
 
   # Its own job so that write access to the repository exists only on a tag,

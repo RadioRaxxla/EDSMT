@@ -498,7 +498,7 @@ def _mode():
     pump(4)
     check("six searches on the switch, Powerplay last",
           segments(win) == ["Sites", "Still there", "Deposits", "Sell prices",
-                            "Mining bodies", "Powerplay"], segments(win))
+                            "Mining bodies", "Powerplay", "Due a check"], segments(win))  # 1.10042 adds Due a check after it
     check("finder knows it as the sixth mode", [k for k, _l in FD.MODES][5] == "powerplay"
           and FD.mode_of_kind("powerplay") == "powerplay")
     pick_mode(win, "Powerplay")
@@ -641,7 +641,7 @@ def _older():
     check("Find goes back to Sites, and says why", win.mode == "sites"
           and "Powerplay" in win.status.cget("text"), (win.mode, win.status.cget("text")))
     check("the other five are still there", segments(win) == [
-        "Sites", "Still there", "Deposits", "Sell prices", "Mining bodies"], segments(win))
+        "Sites", "Still there", "Deposits", "Sell prices", "Mining bodies", "Due a check"], segments(win))  # 1.10042: Due a check
     win.set_mode("powerplay")
     check("and it cannot be chosen while hidden", win.mode == "sites", win.mode)
     win.destroy()

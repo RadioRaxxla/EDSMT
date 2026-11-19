@@ -82,7 +82,8 @@ def _seasons():
           and LB.season_words("", october) == "October 2026")
     check("the app's points match the server's", LB.POINTS ==
           {"find": 10, "complete": 2, "first_body": 15, "verified": 5,
-           "report": 3, "agreed": 2, "layout": 5, "confirmed_old": 3, "regrowth": 5})
+           "report": 3, "agreed": 2, "layout": 5, "confirmed_old": 3, "regrowth": 5,
+           "update": 2, "mined_out": 3})  # 1.10042: site checks earn points
     words = LB.points_words({"find": 12})
     check("how points are given, from the answer when it has them",
           words.startswith("Points: 12 a find") and "+15 for the first find on a body" in words, words)

@@ -889,7 +889,7 @@ check("a picture that is not there is no picture, not an error",
       A.picture("no-such-picture.png") is None)
 _about = A.about_text()
 check("About says which build, whose, the licence and Frontier's",
-      A.APP_VERSION in _about and "Radio Raxxla" in _about and "GPL-3.0-only" in _about
+      A.SHOWN_VERSION in _about and "Radio Raxxla" in _about and "GPL-3.0-only" in _about
       and "Frontier Developments" in _about and "not affiliated" in _about)
 _site = open(os.path.join(_REPO, "site", "index.html"), encoding="utf-8").read()
 for _jpg in ("rhino-1600.jpg", "rhino-800.jpg", "rhino-card.jpg"):

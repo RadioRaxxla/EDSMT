@@ -768,7 +768,12 @@ check("notes can be switched off", "show_tips" in A.DEFAULT_SETTINGS
       and '"show_tips"' in method("SettingsWindow", "__init__"))
 check("the tour shows the window round once, for new and old commanders alike",
       "self.app.start_tour" in method("WelcomeWindow", "answer")
-      and "self.start_tour" in method("EDSMT", "__init__"))
+      # 1.10042: the start's windows moved out of __init__. first_run_windows
+      # puts the voice question, once; first_windows the first question, the
+      # welcome and the tour.
+      and "self.start_tour" in method("EDSMT", "first_windows")
+      and "first_windows" in method("EDSMT", "first_run_windows")
+      and "first_run_windows" in method("EDSMT", "__init__"))
 check("every step of the tour points at something the window has",
       all(spec is None or (spec if isinstance(spec, str) else spec[0]) in SRC
           for spec, _t, _w in A.TOUR_STEPS))
@@ -879,8 +884,9 @@ check("the answer is routed", "self.take_layouts(ok, message)" in method("EDSMT"
 print("== Settings in tabs (#142) ==")
 built = method("SettingsWindow", "__init__")
 # 1.10039 put Theme second, so the colours are seen (#287).
-check("eight tabs, in reading order", A.SETTINGS_TABS ==
-      ("Basics", "Theme", "Overlay", "Keys", "Rigs", "Sharing", "Your data", "About"))
+# 1.10042 (G1, #361) put Audio fourth: every voice and sound setting on one tab.
+check("nine tabs, in reading order", A.SETTINGS_TABS ==
+      ("Basics", "Theme", "Overlay", "Audio", "Keys", "Rigs", "Sharing", "Your data", "About"))
 check("built as a tab view, a scroller in each", "ctk.CTkTabview(" in built
       and "self.tabs.add(name)" in built and "ctk.CTkScrollableFrame(" in built)
 sections = re.findall(r'body = self\.pages\["([^"]+)"\]\n\s+self\._section\(body, "([^"]+)"', built)

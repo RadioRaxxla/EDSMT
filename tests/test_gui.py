@@ -625,7 +625,7 @@ check("the rig warning is under Rigs, Discord under Sharing, backups under Your 
 _about_pics = [w for w in A_walk(_sw) if isinstance(w, tk.Label) and str(w.cget("image"))]
 check("Settings ends with About EDSMT: the Rhino, the build and the small print",
       "ABOUT EDSMT" in " ".join(texts_in(_sw)).upper() and _about_pics
-      and any(A.APP_VERSION in t and "Frontier Developments" in t
+      and any(A.SHOWN_VERSION in t and "Frontier Developments" in t
               for t in texts_in(_sw)),
       ("ABOUT EDSMT" in " ".join(texts_in(_sw)).upper(), len(_about_pics),
        [t for t in texts_in(_sw) if "Frontier" in t or "About" in t][:3]))

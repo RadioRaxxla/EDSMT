@@ -37,6 +37,13 @@ def version():
     return m.group(1)
 
 
+def shown(version):
+    """1.20000 as 1.2 (see release_notes.shown)."""
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from release_notes import shown as _shown
+    return _shown(version)
+
+
 def latest_entry():
     """The top ## block of the changelog, without its own heading."""
     text = read(os.path.join(REPO, "CHANGELOG.md"))
@@ -188,7 +195,9 @@ def main():
     now = version()
     write_version_file(now)
     page = read(PAGE)
-    page = fill(page, "VERSION", now)
+    # The page says the version as people read it (1.2); version.json keeps
+    # the number underneath (1.20000), which is what every copy compares.
+    page = fill(page, "VERSION", shown(now))
     page = fill(page, "WHATSNEW", "\n    " + to_html(latest_entry()) + "\n    ")
     with io.open(PAGE, "w", encoding="utf-8") as fh:
         fh.write(page)

@@ -250,9 +250,9 @@ _real_exe = sys.executable
 sys.executable = EXE
 check("the swap puts the new build where the old one was",
       A.EDSMT._swap_portable(NEW) == EXE and open(EXE, "rb").read() == BUILD)
-check("and the old one is kept aside, to be tidied next start",
-      open(EXE + ".old", "rb").read() == b"old build")
-os.remove(EXE + ".old")
+check("and the old one is kept beside it as the previous version (1.10042)",
+      open(EXE + ".previous", "rb").read() == b"old build" and not os.path.exists(EXE + ".old"))
+os.remove(EXE + ".previous")
 with open(EXE, "wb") as fh:
     fh.write(b"old build")
 _real_copy = shutil.copy2

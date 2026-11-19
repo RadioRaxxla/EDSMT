@@ -347,6 +347,10 @@ class PostBook:
         entry["id"] = ident
         entry["attachments"] = [str(a.get("id")) for a in message.get("attachments") or []
                                 if isinstance(a, dict) and a.get("id") is not None]
+        # Which is which, so an edit can put a new card in place of the old.
+        entry["names"] = {str(a.get("id")): str(a.get("filename") or "")
+                          for a in message.get("attachments") or []
+                          if isinstance(a, dict) and a.get("id") is not None}
         self.save()
         return True
 

@@ -350,7 +350,7 @@ def mark_app():
     mapp.clear_deposit_boxes = _refill
     mapp.refresh_locations = mapp.refresh_deposits = mapp.redraw = lambda: None
     mapp.refresh_commodities = lambda *a: None
-    mapp.share = lambda row: None
+    mapp.share = lambda row, tonnes=None: None
     mapp.on_pick = lambda row: None
     mapp.key = lambda action, fallback="": {"update": "AltGr+3",
                                             "deposit": "Alt+3"}.get(action, fallback)

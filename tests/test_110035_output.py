@@ -485,7 +485,7 @@ def _post_file(url, payload, filename, data, timeout=40.0):
     requests.append(("POST-FILE", url, payload, filename, len(data)))
     return {"id": MESSAGE_ID, "attachments": [{"id": "5550001", "filename": filename}]}
 _edits = []
-def _discord_edit(url, message_id, payload, keep=(), timeout=20.0):
+def _discord_edit(url, message_id, payload, keep=(), timeout=20.0, files=()):
     _edits.append((url, message_id, payload, list(keep)))
     return {"id": message_id}
 EDO.post_json, EDO.discord_post_file, EDO.discord_edit = _post_json, _post_file, _discord_edit
@@ -497,7 +497,9 @@ def KEY(sid):
     return SL.post_key(sid, WH.hook_key(HOOK))
 
 def flow_app(tag):
-    d = make_app({"discord_webhooks": [WH.entry("My Discord", HOOK)]})
+    # The map picture as the summary's picture: this webhook has the card off
+    # (on by default since 1.10042; test_110040_stream.py covers the card).
+    d = make_app({"discord_webhooks": [WH.entry("My Discord", HOOK, card=False)]})
     folder = os.path.join(TMP, "flow-" + tag)
     os.makedirs(folder, exist_ok=True)
     d.earnings = SV.Earnings(folder)

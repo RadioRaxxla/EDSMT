@@ -47,7 +47,7 @@ short = RN.brief(LEAD, "9.99999")
 check("the release says that line", short.startswith("Fixes, and nothing else: finds always carry a name"), short[:80])
 check("and not the detail under the headings", "A long paragraph" not in short and "at length" not in short, short)
 check("it links to the full patch notes for that version",
-      "https://github.com/TheAnnouncer/EDSMT/blob/v9.99999/CHANGELOG.md" in short, short)
+      "https://github.com/RadioRaxxla/EDSMT/blob/v9.99999/CHANGELOG.md" in short, short)
 check("it says which download is which", "EDSMT-Setup.exe" in short and "EDSMT.exe" in short
       and "EDSMT-linux-x86_64.tar.gz" in short, short)
 check("and what SmartScreen will do", "SmartScreen" in short and "Run anyway" in short, short)

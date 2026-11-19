@@ -38,8 +38,8 @@ CHECKS = [
  (1,  "Find window opens at all",            lambda: "_rewrap" in DEFS),
  (2,  "click-then-press hotkey binding",     lambda: wired("binding_from_event")),
  (3,  "says when a hotkey is taken",         lambda: "already taken" in APP),
- (4,  "copy buttons on system name",         lambda: "COPY_COLUMN = 0" in APP and APP.count("column=COPY_COLUMN") >= 1
-                                                      and APP.count('("system", "the system name"') >= 2),
+ (4,  "copy buttons on system name",         lambda: APP.count('("system", "the system name"') >= 2   # 1.10042: on each row's
+                                                      and "actions=self._buttons" in APP and "def copy_rows" in APP),  # buttons in the tree view
  (5,  "Find filters reach the server",       lambda: '"name"' in APP and "verified_only" in EDO),
  (6,  "sortable columns",                    lambda: wired("sort_by") and "def _sorted" in APP),
  (7,  "commander shown on EVERY table",      lambda: APP.count("self._found_by(row)") >= 3),
@@ -143,7 +143,7 @@ CHECKS = [
         and wired("rig_event") and wired("mined_aboard")),
  (117, "Pause",                              lambda: "def pause(self" in SV and wired("pause_session")),
  (118, "three prices",                       lambda: wired("galactic_average") and "def market_means" in JN),
- (119, "finds draw fast",                    lambda: wired("mini_button") and wired("row_buttons")),
+ (119, "finds draw fast",                    lambda: wired("mini_button") and wired("PagedTable")),   # 1.10042: the label grids are a tree view
  (120, "text size per box",                  lambda: "def scaled_canvas" in OV and "overlay_text_%s" in APP),
  (121, "rig planner",                        lambda: wired("planner_trace") and wired("follow_trace")
         and wired("plan_marks") and os.path.exists("rigplan.py")),
@@ -162,7 +162,7 @@ CHECKS = [
  (138, "download page wears the site's shell", lambda: all(t in src("site/index.html") for t in
         ('class="site-head"', 'class="topbar"', 'class="site-foot"', "/assets/css/raxxla.css",
          "/assets/js/raxxla.js")) and ":root{" not in src("site/index.html")),
- (139, "source on GitHub, and how to run it", lambda: "github.com/TheAnnouncer/EDSMT" in src("site/index.html")
+ (139, "source on GitHub, and how to run it", lambda: "github.com/RadioRaxxla/EDSMT" in src("site/index.html")
         and "## Run from source" in src("README.md")),
  # journal rules
  ("J1","sticky EOF handled",                 lambda: "seek" in JN and "SEEK_END" in JN),

@@ -270,10 +270,19 @@ for _node in _ast.walk(_tree):
 # as the first-run notice did in its __init__, and show_welcome brings an
 # open one forward when it is asked for again. By itself it never opens over
 # the game (test_110040_welcome).
+# 1.10042: open_map_key brings the map's key forward when it is asked for
+# again - from the ? on the map, its right-click menu, Help or the welcome,
+# each a click; and the tour's light lifts the four bars of its ring above
+# the window's own widgets - stacking inside one window, not a window.
+# 1.10042 (C9): show_sites_key brings My sites up over the game, run only by
+# the key (or joystick button) the commander bound to it.
 check("only windows opened by a click, a typed box and the key capture do",
       set(_raisers) == {"open_sites", "open_land", "open_materials", "_capture", "show",
                         "show_tab", "lift", "focus_force", "pop_out",
-                        "_paint_dock_button", "show_welcome", "_hold_keyboard"},
+                        "_paint_dock_button", "show_welcome", "_hold_keyboard",
+                        "open_map_key", "light", "show_sites_key",
+                        # 1.10042: the spoken-lines window, opened by its button or from Help.
+                        "open_voice_history"},
       _raisers)
 
 print("== every copy goes through the one clipboard writer ==")

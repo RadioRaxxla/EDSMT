@@ -153,11 +153,11 @@ rem  unpacked libraries. Tidied away with the __pycache__ folders.
 if exist "build\work" rmdir /s /q "build\work"
 for /d /r %%D in (__pycache__) do if exist "%%D" rmdir /s /q "%%D"
 
-rem  The source zip is exactly the files git tracks - nothing a commander
-rem  or this machine keeps beside them can get in.
+rem  The source zip is every file that is in the repository or about to be:
+rem  what git tracks, plus anything new it is not told to ignore. Nothing a
+rem  commander or this machine keeps beside them can get in.
 echo         Zipping the source, which GPL-3.0 requires you to offer...
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$files = git ls-files; if (-not $files) { exit 1 }; $stage = Join-Path $env:TEMP ('edsmt-src-' + [guid]::NewGuid()); foreach ($f in $files) { $to = Join-Path $stage $f; New-Item -ItemType Directory -Force -Path (Split-Path $to) | Out-Null; Copy-Item -LiteralPath $f -Destination $to }; Compress-Archive -Path (Join-Path $stage '*') -DestinationPath 'upload\EDSMT-source.zip' -CompressionLevel Optimal -Force; Remove-Item -Recurse -Force $stage"
+%BPY% build\source_zip.py upload\EDSMT-source.zip
 if errorlevel 1 goto FAIL
 echo         OK.
 

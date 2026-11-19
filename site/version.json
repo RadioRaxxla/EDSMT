@@ -1,15 +1,15 @@
 {
-  "version": "1.10041",
+  "version": "1.20000",
   "url": "https://radioraxxla.com/EDSMT/",
-  "headline": "Fixed \u2014 every find carries your CMDR name, and Inara updates work again",
+  "headline": "New \u2014 one data window, a key to the map, tonnes left",
   "installer": {
-    "url": "https://radioraxxla.com/EDSMT/EDSMT-Setup.exe?v=1.10041",
-    "sha256": "b9b7acc07783b6959f5d93f65a7b200c1d5c8b682e188c36de1d808b9a0bbeb7",
-    "bytes": 44011915
+    "url": "https://radioraxxla.com/EDSMT/EDSMT-Setup.exe?v=1.20000",
+    "sha256": "d493d0f915abbb2de0c0ec32fcf188840b115f595836bf3a69e53daa195087e1",
+    "bytes": 80995259
   },
   "portable": {
-    "url": "https://radioraxxla.com/EDSMT/EDSMT.exe?v=1.10041",
-    "sha256": "d4ec30ff27adb14a65d36d5fc3aa7f2ba825a166997cf019334315b1d1a0ecba",
-    "bytes": 52610506
+    "url": "https://radioraxxla.com/EDSMT/EDSMT.exe?v=1.20000",
+    "sha256": "dfb1fa3f1a9abf6353d37b54ee4a095b69e878d562f5c5d7d75ecbcfa86478b7",
+    "bytes": 93823148
   }
 }

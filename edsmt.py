@@ -46,6 +46,15 @@ import mapimage as MI
 import shiphold as SH
 import sessionledger as SL
 import supportbundle as SB
+import startbackup as STB
+import statuslines as STL
+import filltimer as FT
+import basiccues as BC
+import rigfill as RF
+import settingsfile as SFL
+import csvexport as CSVX
+import rhinototals as RT
+import folderstats as FS
 import finder as FD
 import powerplay as PW
 import sellplan as SP
@@ -58,6 +67,9 @@ import sitebook as SBK
 import markerfilter as MF
 import board as LB
 import crowd as CR
+import nowstatus as NS
+import tonnesleft as TL
+import recheck as RC
 import presale as PS
 import gamebinds as GB
 import galaxy as GX
@@ -74,6 +86,7 @@ import pairing as PR
 import installkey as IK
 import sharehold as HELD
 import planring as PRG
+import mapkey as MK
 import richpresence as DRP
 import sitecard as SCD
 import shipview as SHV
@@ -90,18 +103,32 @@ import streamer as ST
 import streamout as SO
 import sessioncard as SC
 import sonar as SN
+import audiodev as AD
 import voice as VO
+import voiceask as VQ
+import voiceblocks as VB
 import voiceattack as VA
 import voicecues as VC
 import tableview as TV
+import sitetree as STR
+import ownmarks as OM
+import farguide as FG
+import tkguard as TKG
+import relaunch as RL
+import searchjob as SJ
 import catchup as CU
 import journalrows as JR
+
+# 1.10042: a closed window or tab takes its waiting timers with it.
+TKG.install()
 
 ctk.set_appearance_mode("Dark")
 
 APP_NAME = "EDSMT"
 APP_TITLE = "EDSMT - Surface Mining Survey"
 APP_VERSION = EDO.APP_VERSION
+# 1.2: the version as people read it; APP_VERSION is what is compared.
+SHOWN_VERSION = EDO.SHOWN_VERSION
 
 # Cockpit palette, taken from radioraxxla.com so the tool and the site look
 # like the same operation.
@@ -173,8 +200,6 @@ def _style_table():
                      corner_radius=0),
         BTN_GHOST=dict(fg_color="transparent", hover_color=RULE, text_color=DIM,
                        corner_radius=0),
-        BTN_HEADING=dict(fg_color="transparent", hover_color=RULE,
-                         text_color=ORANGE, corner_radius=0),
         # And the same for the things you type into. Left to itself
         # customtkinter draws these in its own blue-grey, which is the
         # single loudest reason the window did not look like the site.
@@ -201,7 +226,6 @@ BTN_WARN = _STYLES["BTN_WARN"]
 BTN_DANGER = _STYLES["BTN_DANGER"]
 BTN_ROW = _STYLES["BTN_ROW"]
 BTN_GHOST = _STYLES["BTN_GHOST"]
-BTN_HEADING = _STYLES["BTN_HEADING"]
 BOX = _STYLES["BOX"]
 ENTRY = _STYLES["ENTRY"]
 SWITCH = _STYLES["SWITCH"]
@@ -269,6 +293,11 @@ SAME_FIND_M = 40.0
 # and for MARK to ask whether you meant to mark it again. A deposit's rigs
 # sit about sixty metres apart, so this is one patch, not the next one.
 SAME_DEPOSIT_M = 100.0
+# 1.2 (basiccues.py): how often the app looks for one of yours due a check
+# near you, and asks the community map for your ribbon steps (the map keeps
+# its answer five minutes).
+DUE_LOOK_S = 60.0
+RIBBON_LOOK_S = 600.0
 # A deposit of another commodity this close is the same spot: MARK asks
 # whether to rename it or add a second one - see mark_deposit. Tighter than
 # SAME_DEPOSIT_M, because two commodities a patch apart are real; two at the
@@ -307,11 +336,6 @@ MAX_LOCATIONS = 40
 RAIL_WIDTH = 384
 SCROLLBAR_W = 18
 
-# Find's results table. The copy buttons live in the FIRST column, not the
-# last: a table with eight columns of system names is wider than any window
-# anybody runs, and a control on the far right of it is one nobody will ever
-# see. They were there all along and invisible, which is worse than absent.
-COPY_COLUMN = 0
 # The top bar's readouts need this much room to say where you are and who
 # you are without being cut off mid-word; below it the buttons move under.
 TOP_READOUT_ROOM = 420
@@ -410,7 +434,6 @@ STREAM_LAST_S = 30 * 60
 # and go back to it by themselves this many seconds later.
 MASK = "•"
 REVEAL_S = 20
-DATA_COLUMN_0 = 1
 
 # How many rows a page of a search asks for. 50 was the client default and
 # the only thing the user ever saw. Since 1.10036 this is only the first
@@ -776,6 +799,11 @@ def parse_metres(text):
     return value * scale
 
 
+# What lists the audio devices (1.10042, G2): Windows' own list on Windows,
+# nothing elsewhere. A check puts its own here before the window is built.
+AUDIO_BACKEND = AD.windows_backend(VO.powershell_command)
+
+
 def warning_sound(profane=False):
     """The rig warning's .wav, or "" if it is not there.
 
@@ -964,6 +992,10 @@ DEFAULT_SETTINGS = {
     # you share is verified in your name as it goes up.
     "verify_my_finds": True,
     "community_auto_share": True,
+    # 1.10042: the tonnes of deposits worked out before this version go up
+    # once; this marks it done and it is never sent again.
+    "tonnes_catchup_done": False,
+    "twitch_status": False,
     "share_market_prices": True,
     "journal_dir": "",
     # The keys are Left Alt + 1 onwards on the number row, in the order the
@@ -986,6 +1018,16 @@ DEFAULT_SETTINGS = {
     # window (asked for on the forum). Alt+0, next to the work keys.
     "hotkey_overlay": OVERLAY_KEY,
     "hotkey_zoom": SCOPE_ZOOM_KEY,
+    # 1.10042: the scope's zoom step is kept across a restart; the keys
+    # written along its foot have a switch; and "skip this pin" in the rig
+    # planner is an action with a key (and a joystick button) of its own,
+    # unbound until the commander picks one.
+    "scope_zoom": 1,
+    "overlay_key_hints": True,
+    "hotkey_pin_skip": "",
+    # 1.10042: My sites, the data window, brought up over the game. Unbound
+    # until the commander picks a key.
+    "hotkey_sites": "",
     # Standing on a deposit you already marked, to write down that its
     # Amount has dropped: the last thing done at a deposit, so the last key.
     "hotkey_update": OV.WORK_KEYS["hotkey_update"],
@@ -1028,6 +1070,9 @@ DEFAULT_SETTINGS = {
     # primary/secondary/primary (inputmix.fire_choice).
     "long_press_button": "primary",
     "long_press_learned": "",
+    # 1.10042: how long a hold counts as a rig placed, "1" to "5" seconds.
+    # The hold that places a rig in the game differs between commanders.
+    "long_press_seconds": "2",
     # The game says "approaching mining rig maximum operational range" at
     # about 4 km, and a rig drops off the SRV's Contacts at about 2.9 km -
     # both measured in the game. 3.5 km warns before the game does.
@@ -1050,6 +1095,13 @@ DEFAULT_SETTINGS = {
     # and which way to the target, for a headset; the proximity sonar is a
     # tone that quickens as the target nears. All off until switched on.
     "voice_mode": False,
+    # 1.10042: "Do you want EDSMT to speak?" has been put and answered.
+    "voice_asked": False,
+    # Celestia's comm sound by place (ship, Rhino, on foot): on unless switched off.
+    "voice_comms": True,
+    # The audio device the voice and the sounds play on: its Windows id, or
+    # "" for the system's default (1.10042, G2).
+    "audio_device": "",
     "voice_theme": VO.DEFAULT_THEME,
     "voice_rate": VO.DEFAULT_RATE,
     # Celestia's answer length (Short / Normal / Chatty), and her reminders
@@ -1127,8 +1179,15 @@ DEFAULT_SETTINGS = {
     # soon as it is saved. See upgrade_overlay_follow for an older file.
     "overlay_follows_app": True,
     # 1.10040 (#304): the colour you are drawn in on the map and the scope,
-    # the Rhino or the ship. Blank is the theme's own cyan.
-    "srv_colour": "",
+    # the Rhino or the ship. Blank is the theme's own cyan. White since
+    # 1.10042 - "my location is most important" - and a little larger, with
+    # the size a setting (mapkey.MARKER_SIZES). See upgrade_marker.
+    "srv_colour": MK.MARKER_WHITE,
+    "srv_marker_size": MK.MARKER_SIZE_DEFAULT,
+    # 1.10042: a switch for each layer of the map and the scope - the survey
+    # border, the circles to drive, the range rings, the guided survey's
+    # points, the gaps, the pointer and the lines between deposits.
+    **MK.SETTINGS,
     # 1.10040 (#306): the materials the commodity lists leave out. None: the
     # lists offer every one.
     "materials_hidden": [],
@@ -1141,6 +1200,11 @@ DEFAULT_SETTINGS = {
     "overlay_show_targets": True,
     "overlay_show_status": True,
     "overlay_show_deposit": True,
+    # 1.10042: the extra lines on the STATUS box.
+    "overlay_status_fuel": True,
+    "overlay_status_tph": True,
+    "overlay_status_merits": True,
+    "overlay_status_fill": True,
     # The step-by-step guide rides along with whichever boxes are on. On for
     # a first-time commander: it is how the keys are learned, and one switch
     # turns it off.
@@ -1507,9 +1571,20 @@ def load_settings():
     # button picked here. Right was the game's Secondary fire by default.
     merged["long_press_button"] = IM.fire_choice(merged)
     merged["long_press_learned"] = ""
-    return upgrade_overlay_follow(upgrade_discord(
+    return upgrade_marker(upgrade_overlay_follow(upgrade_discord(
         keep_new_keys_free(upgrade_layout(upgrade_hotkeys(merged, data), data),
-                           data), data), data)
+                           data), data), data), data)
+
+
+def upgrade_marker(merged, saved):
+    """You, white on the map (1.10042), for a file written before the
+    marker had a size: one still on the theme's own colour - which every
+    file was given - turns white once. A colour somebody picked is kept,
+    and Theme's own picked again afterwards stays picked."""
+    saved = saved or {}
+    if "srv_marker_size" not in saved and not str(saved.get("srv_colour") or "").strip():
+        merged["srv_colour"] = MK.MARKER_WHITE
+    return merged
 
 
 def upgrade_overlay_follow(merged, saved):
@@ -1722,7 +1797,7 @@ def worked_out_age(deposit, now=None):
                               else "%d days ago" % days)
 
 
-def tonnes_lines(deposit, peers=None):
+def tonnes_lines(deposit, peers=None, crowd=None):
     """What a deposit has given, as lines for its details.
 
     Its own commodity is the number - by-products come off it too and are
@@ -1730,7 +1805,10 @@ def tonnes_lines(deposit, peers=None):
     each time says what it holds, and so roughly what is left now. Before
     that, `peers` - the commander's other deposits - give an estimate from
     the ones with the same rigs and density that were worked out (1.10032),
-    marked as an estimate and saying how many it rests on."""
+    marked as an estimate and saying how many it rests on. Failing that,
+    `crowd` - what everyone's reports say deposits like it held (1.10042) -
+    gives the range with how many reports are behind it; and with nothing
+    measured it says so."""
     own, others = SV.own_tonnes(deposit)
     held = SV.cycle_tonnes(deposit)
     lines = []
@@ -1750,20 +1828,26 @@ def tonnes_lines(deposit, peers=None):
             left = ("%dt" % left_high) if left_low == left_high else \
                 ("%d-%dt" % (left_low, left_high))
             lines.append("left: about %s" % left)
-    elif peers and not SV.is_depleted(deposit.get("amount")):
-        guess = SV.estimate_tonnes(peers, deposit.get("rigs"),
-                                   deposit.get("density"), exclude=deposit)
+    elif (peers or crowd is not None) and not SV.is_depleted(deposit.get("amount")):
+        seen = crowd.range_for(deposit.get("commodity"), deposit.get("rigs"),
+                               deposit.get("density")) if crowd is not None else None
+        guess = seen or (SV.estimate_tonnes(peers, deposit.get("rigs"),
+                                            deposit.get("density"), exclude=deposit)
+                         if peers else None)
         if guess:
             low, high, count = guess
             size = ("%dt" % high) if low == high else ("%d-%dt" % (low, high))
-            lines.append("est. holds %s - from %d worked out with %s rigs, %s"
-                         % (size, count, deposit.get("rigs"),
+            lines.append("est. holds %s - from %d %s with %s rigs, %s"
+                         % (size, count, "reports of deposits worked out" if seen
+                            else "worked out", deposit.get("rigs"),
                             deposit.get("density")))
             if own:
                 left_low, left_high = max(0, low - own), max(0, high - own)
                 left = ("%dt" % left_high) if left_low == left_high else \
                     ("%d-%dt" % (left_low, left_high))
                 lines.append("est. left: %s" % left)
+        else:
+            lines.append("tonnes held: %s" % TL.NOT_MEASURED)
     return lines
 
 
@@ -2010,6 +2094,42 @@ def restore_settings_copy(path, now=None):
         shutil.copy2(SETTINGS_FILE, SETTINGS_FILE + ".before-restore-" + stamp)
     _atomic_write(SETTINGS_FILE, json.dumps(data, indent=2, default=str))
     return data
+
+
+def save_settings_file(path, settings):
+    """Write the settings to a file a commander picked, with no key or token
+    in it (1.10042). Raises OSError when it cannot be written."""
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(SFL.export_text(settings))
+
+
+def load_settings_file(path, current, now=None):
+    """Take the settings out of a file a commander picked (1.10042).
+
+    Unknown keys, secrets and values of the wrong kind are left out; the rest
+    go over the settings in use, the old file is kept beside the new one, and
+    the app's own load brings it up to date. Returns (settings, taken,
+    ignored); raises ValueError when the file is not one of ours or cannot
+    be read."""
+    try:
+        with open(path, "r", encoding="utf-8-sig") as handle:
+            text = handle.read()
+    except (OSError, UnicodeDecodeError) as problem:
+        raise ValueError("it could not be read (%s)" % problem)
+    accepted, ignored, problem = SFL.read_text(text, DEFAULT_SETTINGS)
+    if problem:
+        raise ValueError(problem)
+    if not accepted:
+        raise ValueError("nothing in it is a setting EDSMT knows")
+    now = time.time() if now is None else now
+    stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(now))
+    os.makedirs(DATA_DIR, exist_ok=True)
+    if os.path.exists(SETTINGS_FILE):
+        import shutil
+        shutil.copy2(SETTINGS_FILE, SETTINGS_FILE + ".before-load-" + stamp)
+    _atomic_write(SETTINGS_FILE, json.dumps(SFL.merge(current, accepted),
+                                            indent=2, default=str))
+    return load_settings(), len(accepted), ignored
 
 
 def rigs_path():
@@ -2308,10 +2428,12 @@ def import_finds(store, path):
         # centre this commander stood on and recorded themselves.
         if str(row.get("iscenter") or "").strip().lower() == "true":
             if store.location(system, body, number) is None:
+                # recorded="": this layout carries no dates, and the day
+                # of an import is not a day anybody was there.
                 store.set_location(system, body, number,
                                    lat=_import_number(row.get("lat")),
                                    lon=_import_number(row.get("long")),
-                                   notes=note)
+                                   notes=note, recorded="")
                 result["signals"] += 1
             else:
                 result["duplicates"] += 1
@@ -2345,7 +2467,7 @@ def import_finds(store, path):
             # Where it came from, on the signal itself. A commander looking
             # at a body full of finds they do not remember making deserves
             # an answer that is not "check the deposit notes one at a time".
-            store.set_location(system, body, number, notes=note)
+            store.set_location(system, body, number, notes=note, recorded="")
             result["signals"] += 1
 
     result["ok"] = True
@@ -2470,7 +2592,7 @@ def take_share_lines(store, text):
         result["taken"] += 1
         if store.location(find["system"], find["body"], find["location"]) is None:
             store.set_location(find["system"], find["body"], find["location"],
-                               notes=note)
+                               notes=note, recorded="")
             result["signals"] += 1
     return result
 
@@ -2849,11 +2971,17 @@ class PlanView(tk.Canvas):
     """
 
     def __init__(self, parent, on_select=None, on_edit=None, on_edit_rig=None,
-                 on_plan_ring=None):
+                 on_plan_ring=None, on_menu=None):
         super().__init__(parent, bg=VOID, highlightthickness=0, bd=0)
         self.on_select = on_select
         self.on_edit = on_edit
         self.on_edit_rig = on_edit_rig
+        # 1.10042: what the right-click menu and the "?" ask the app for,
+        # as (action, what): "wp_remove", "wp_skip" (a waypoint's number),
+        # "rig_up", "rig_commodity" (a rig), "layer" ((name, on)), "key".
+        self.on_menu = on_menu
+        self._wp_hits = []
+        self._key_box = None
         # The planning circle (1.10040, #215): the app is told where one is
         # put down, as (east, north) metres from you, or None to clear it;
         # it hands the centre back in `planning_ring` before each draw.
@@ -2989,16 +3117,74 @@ class PlanView(tk.Canvas):
         self.redraw()
 
     def context_menu(self):
-        """The right-click menu: Recentre first, as right-click always was,
-        then the planning circle."""
+        """The right-click menu (1.10042): what the click is on or near
+        first - a waypoint to remove or skip, a rig to pick up or change -
+        then Recentre, as right-click always was, the planning circle (Clear
+        only when there is one), the map's key and a switch for each layer."""
         menu = tk.Menu(self, tearoff=0, bg=PANEL, fg=TEXT, activebackground=ORANGE,
-                       activeforeground=VOID)
+                       activeforeground=VOID, selectcolor=TEXT)
+        x, y = self._menu_at or (0, 0)
+        near = False
+        point = PV.near_mark(attr(self, "_wp_hits", None), x, y)
+        if point is not None:
+            near = True
+            n = point.get("n")
+            name = ("LANDED (waypoint %s)" % n) if point.get("landed") else ("Waypoint %s" % n)
+            menu.add_command(label="%s: remove it" % name,
+                             command=lambda n=n: self._ask("wp_remove", n))
+            if point.get("state") == "current":
+                menu.add_command(label="%s: skip it" % name,
+                                 command=lambda n=n: self._ask("wp_skip", n))
+        rig = PV.near_mark(attr(self, "_rig_hits", None), x, y)
+        if rig is not None:
+            near = True
+            label = rig.get("label") or rig.get("n")
+            menu.add_command(label="Rig %s: pick it up" % label,
+                             command=lambda r=rig: self._ask("rig_up", r))
+            menu.add_command(label="Rig %s: change commodity" % label,
+                             command=lambda r=rig: self._ask("rig_commodity", r))
+        if near:
+            menu.add_separator()
         menu.add_command(label="Recentre", command=self.recentre)
         menu.add_command(label="Planning circle here (%s)" % PRG.distance_text(PRG.RADIUS_M),
                          command=lambda: self.plan_ring_at(*(self._menu_at or (0, 0))))
-        menu.add_command(label="Clear planning circle", command=self.clear_plan_ring,
-                         state="normal" if self.planning_ring else "disabled")
+        if self.planning_ring:
+            # Not "Clear planning circle" next to a rig: a tester took it
+            # for the way to remove the rig his red spacing rings were round.
+            menu.add_command(label="Clear the planning circle (not a rig)",
+                             command=self.clear_plan_ring)
+        menu.add_separator()
+        menu.add_command(label="Map key - what every mark is",
+                         command=lambda: self._ask("key", None))
+        self._menu_vars = []
+        for _setting, name, label, _default in MK.LAYERS:
+            var = tk.BooleanVar(self, value=self._layer(name))
+            self._menu_vars.append(var)
+            menu.add_checkbutton(label=label, variable=var, onvalue=True, offvalue=False,
+                                 command=lambda n=name, v=var: self._ask(
+                                     "layer", (n, bool(v.get()))))
         return menu
+
+    def _ask(self, action, what):
+        """Hand a choice from the menu or the "?" to the app."""
+        if self.on_menu:
+            self.on_menu(action, what)
+
+    def _layer(self, name):
+        """Is this layer drawn (mapkey.LAYERS)? As it ships when not said."""
+        return MK.shown(self._map_prefs(), name)
+
+    def _key_button(self, viewport):
+        """The "?" in the top right corner: a click opens the map's key."""
+        size = 20
+        x1, y0 = viewport.width - 8, 8
+        x0, y1 = x1 - size, y0 + size
+        self.create_rectangle(x0, y0, x1, y1, outline=DIM, fill=VOID, width=1,
+                              tags=("keybutton",))
+        self.create_text((x0 + x1) / 2.0, (y0 + y1) / 2.0, text="?", fill=TEXT,
+                         font=F_SMALL_B, tags=("keybutton",))
+        self._key_box = (x0, y0, x1, y1)
+        self._taken.append((x0 - 2, y0 - 2, x1 + 2, y1 + 2))
 
     def _context(self, event):
         self._menu_at = (event.x, event.y)
@@ -3051,6 +3237,10 @@ class PlanView(tk.Canvas):
             self.delete(label)
 
     def _clicked(self, event):
+        box = attr(self, "_key_box", None)
+        if box and box[0] - 2 <= event.x <= box[2] + 2 and box[1] - 2 <= event.y <= box[3] + 2:
+            self._ask("key", None)
+            return
         if not self._plan:
             return
         hit = PV.hit_test(self._plan["items"], event.x, event.y)
@@ -3114,6 +3304,8 @@ class PlanView(tk.Canvas):
         # rigs, the ring labels, the dots, the labels already placed.
         cx, cy = viewport.centre
         self._taken = [(cx - 12, cy - 12, cx + 12, cy + 12)]
+        self._key_button(viewport)
+        self._wp_hits = []
         self._swept_percent = None
         if survey:
             self._survey(viewport, survey)
@@ -3124,8 +3316,10 @@ class PlanView(tk.Canvas):
         if rigs:
             self._rig_marks(viewport, rigs)
         self._map_under(viewport, rigs)
+        self._links(viewport, self._plan)
         self._deposits(self._plan)
         self._me(viewport, self._plan)
+        self._link_labels(viewport)
         self._map_over(viewport, rigs)
         self._guidance(viewport, self._plan)
         top = self._footer(width, height, self._plan)
@@ -3196,24 +3390,32 @@ class PlanView(tk.Canvas):
         if not centre:
             return
         cx, cy = viewport.to_canvas(*centre)
-        for ring in survey.get("rings") or []:
-            r = viewport.radius_px(ring)
-            self.create_oval(cx - r, cy - r, cx + r, cy + r,
-                             outline=CYAN, dash=(6, 6))
+        # 1.10042: each of these has a switch (mapkey.LAYERS).
+        if self._layer("drive"):
+            for ring in survey.get("rings") or []:
+                r = viewport.radius_px(ring)
+                self.create_oval(cx - r, cy - r, cx + r, cy + r,
+                                 outline=CYAN, dash=(6, 6), tags=("survey", "drive"))
         border = survey.get("border_m")
         if border:
-            r = viewport.radius_px(border)
-            self.create_oval(cx - r, cy - r, cx + r, cy + r,
-                             outline=AMBER, width=2)
             # How much is swept goes in the footer, not on the ring: on the
             # ring it sat where finds are, and a dot drawn after it covered it.
             self._swept_percent = survey.get("percent")
-        self.create_line(cx - 7, cy, cx + 7, cy, fill=AMBER, width=2)
-        self.create_line(cx, cy - 7, cx, cy + 7, fill=AMBER, width=2)
-        for gap in survey.get("gaps") or []:
-            gx, gy = viewport.to_canvas(gap["east"], gap["north"])
-            self._keep_clear(self.create_text(gx, gy, fill=RED, font=F_SMALL_B,
-                                              text="GAP %.1f km2" % gap["area_km2"]))
+        if self._layer("border"):
+            if border:
+                r = viewport.radius_px(border)
+                self.create_oval(cx - r, cy - r, cx + r, cy + r,
+                                 outline=AMBER, width=2, tags=("survey", "border"))
+            self.create_line(cx - 7, cy, cx + 7, cy, fill=AMBER, width=2,
+                             tags=("survey", "border"))
+            self.create_line(cx, cy - 7, cx, cy + 7, fill=AMBER, width=2,
+                             tags=("survey", "border"))
+        if self._layer("gaps"):
+            for gap in survey.get("gaps") or []:
+                gx, gy = viewport.to_canvas(gap["east"], gap["north"])
+                self._keep_clear(self.create_text(gx, gy, fill=RED, font=F_SMALL_B,
+                                                  text="GAP %.1f km2" % gap["area_km2"],
+                                                  tags=("gap",)))
 
     def _wing_layer(self, viewport, survey):
         """The wing on the map (1.10040, #171): each wingmate's swept ground,
@@ -3255,6 +3457,15 @@ class PlanView(tk.Canvas):
                                       width=2, tags=("wing", "wingrig"))
                 self.create_text(x, y, text=str(rig.get("n") or ""), fill=colour,
                                  font=F_MICRO, tags=("wing", "wingrig"))
+            # 1.10042: a rig they have picked up stays in the game until you
+            # leave the planet, so it stays here too - dashed, and said.
+            for rig in mate.get("collected") or []:
+                x, y = viewport.to_canvas(rig["east"], rig["north"])
+                self.create_rectangle(x - 6, y - 6, x + 6, y + 6, outline=colour,
+                                      width=1, dash=(2, 2), tags=("wing", "wingcollected"))
+                self.create_text(x + 9, y, anchor="w", fill=colour, font=F_MICRO,
+                                 text="rig %s collected" % (rig.get("n") or ""),
+                                 tags=("wing", "wingcollected"))
             x, y = viewport.to_canvas(mate["east"], mate["north"])
             self.create_polygon(x, y - 7, x + 7, y, x, y + 7, x - 7, y,
                                 outline=colour, fill="", width=2, tags=("wing", "wingmate"))
@@ -3330,7 +3541,7 @@ class PlanView(tk.Canvas):
         radar = rigs.get("radar") if isinstance(rigs, dict) and prefs.get("radar") else None
         if radar:
             cx, cy = viewport.centre
-            self.create_polygon(PV.arrow_points(cx, cy, plan["heading"]),
+            self.create_polygon(PV.arrow_points(cx, cy, plan["heading"], self._me_size()),
                                 fill=self._radar_colour(radar["state"]),
                                 outline=VOID, tags=("radar",))
 
@@ -3361,8 +3572,9 @@ class PlanView(tk.Canvas):
 
     def _golden_list(self, viewport, groups):
         """"Top groups", top right: most rigs first, what each is worth an
-        hour with the drive, and how far it is from you."""
-        y = 12
+        hour with the drive, and how far it is from you. Under the "?"."""
+        box = attr(self, "_key_box", None)
+        y = box[3] + 6 if box else 12
         for group in groups:
             text = "P%d  %d rigs  %s  %s %03d" % (
                 group["n"], group["rigs"], self._rate_text(group),
@@ -3450,11 +3662,21 @@ class PlanView(tk.Canvas):
             if not item:
                 continue
             lines.append((key, colour, item))
-            if key == "wp" and not item.get("complete"):
+            if key == "wp" and not item.get("complete") and self._layer("waypoints"):
                 for point in item.get("points") or []:
                     x, y = viewport.to_canvas(point["east"], point["north"])
                     if not (-8 <= x <= viewport.width + 8 and -8 <= y <= viewport.height + 8):
                         continue
+                    # What a right-click near it finds (1.10042).
+                    self._wp_hits.append((x, y, point))
+                    if point.get("landed"):
+                        # Waypoint 1: where you touched down. The ship may
+                        # have left; the key says so.
+                        landed = self.create_text(x, y + 7, anchor="n",
+                                                  fill=colour if point["state"] != "done" else DIM,
+                                                  font=F_MICRO, text="LANDED",
+                                                  tags=("wp", "wplanded"))
+                        self._keep_clear(landed)
                     if point["state"] == "current":
                         r = max(7.0, viewport.radius_px(item.get("arrive_m") or 250.0))
                         self.create_oval(x - r, y - r, x + r, y + r, outline=colour,
@@ -3471,13 +3693,14 @@ class PlanView(tk.Canvas):
                     else:
                         self.create_oval(x - 2, y - 2, x + 2, y + 2, fill=FAINT,
                                          outline="", tags=("wp", "wpdone"))
-            if item.get("complete") or "bearing" not in item:
+            if item.get("complete") or "bearing" not in item or not self._layer("pointer"):
                 continue
-            dx = math.sin(math.radians(item["bearing"]))
-            dy = -math.cos(math.radians(item["bearing"]))
-            self.create_polygon(PV.arrow_points(cx + dx * 30, cy + dy * 30,
-                                                item["bearing"], 11),
-                                fill=colour, outline=VOID, tags=("chevron", key))
+            # 1.10042: a line with a dot, out from beside you - never the
+            # same arrow as yours.
+            inner = self._me_size() + 4
+            shape = PV.pointer_shape(cx, cy, item["bearing"], inner=inner, outer=inner + 20)
+            self.create_line(*shape["line"], fill=colour, width=2, tags=("chevron", key))
+            self.create_oval(*shape["dot"], fill=colour, outline=VOID, tags=("chevron", key))
         top = 14
         for found in self.find_withtag("radar"):
             if self.type(found) == "text" and self.bbox(found):
@@ -3508,10 +3731,10 @@ class PlanView(tk.Canvas):
         cx, cy = viewport.centre
         bounds = (0, 0, viewport.width, viewport.height)
         slant = math.sqrt(0.5)
-        for ring in plan["rings"]:
+        for ring in plan["rings"] if self._layer("rings") else ():
             r = ring["radius"]
             self.create_oval(cx - r, cy - r, cx + r, cy + r,
-                             outline=RULE, dash=(2, 5))
+                             outline=RULE, dash=(2, 5), tags=("ring",))
             label = self.create_text(cx + r * slant + 3, cy - r * slant - 3,
                                      text=_metres(ring["metres"]), anchor="sw",
                                      fill=FAINT, font=F_MICRO, tags=("ringlabel",))
@@ -3611,10 +3834,41 @@ class PlanView(tk.Canvas):
     def _me(self, viewport, plan):
         # 1.10040 (#304): you in the marker colour the app hands over - the
         # theme's own, or the one picked in Settings.
+        # 1.10042: white unless picked, a little larger, its size a setting.
         cx, cy = viewport.centre
-        self.create_polygon(PV.arrow_points(cx, cy, plan["heading"]),
-                            fill=attr(self, "marker", None) or CYAN, outline=VOID,
+        self.create_polygon(PV.arrow_points(cx, cy, plan["heading"], self._me_size()),
+                            fill=attr(self, "marker", None) or MK.MARKER_WHITE, outline=VOID,
                             tags=("me",))
+        # The 12 pixels round you are already kept clear; only the largest
+        # marker needs more, so labels stay where they have always gone.
+        size = self._me_size() - 3
+        if size > 12:
+            self._taken.append((cx - size, cy - size, cx + size, cy + size))
+
+    def _me_size(self):
+        """Your marker's size in pixels: the old 12, times the setting."""
+        return MK.marker_size(self._map_prefs().get("marker_size"), 12)
+
+    def _links(self, viewport, plan):
+        """Zoomed in, with its switch on (1.10042): a thin line from each
+        deposit to the one nearest it, under the dots."""
+        self._map_links = []
+        if not plan or not self._layer("links") or not PV.links_wanted(
+                viewport.extent_m, attr(self, "_auto_extent", None)):
+            return
+        self._map_links = PV.deposit_links(plan["items"])
+        for link in self._map_links:
+            a, b = link["a"], link["b"]
+            self.create_line(a["x"], a["y"], b["x"], b["y"], fill=DIM, width=1,
+                             dash=(4, 3), tags=("deplink",))
+
+    def _link_labels(self, viewport):
+        """Each line's length at its middle, where there is room."""
+        bounds = (0, 0, viewport.width, viewport.height)
+        for link in attr(self, "_map_links", None) or []:
+            a, b = link["a"], link["b"]
+            self._label((a["x"] + b["x"]) / 2.0, (a["y"] + b["y"]) / 2.0, 0,
+                        _metres(link["range_m"]), MUTED, bounds, tags=("deplinklabel",))
 
     def _footer(self, width, height, plan):
         parts = ["rings %s" % _metres(plan["ring_step_m"])]
@@ -4052,6 +4306,9 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         # The ground the SRV has swept, per body, and the survey area set on
         # it. One map at a time is live; it is saved as it grows.
         self.survey_book = CV.CoverageBook(DATA_DIR)
+        # 1.10042: a deposit picked in My sites to be guided to, on any body,
+        # is kept until you get there - across a restart too.
+        self.restore_far_guide()
         # The guided survey's waypoints and the kept rig plans (1.10035).
         self.guide_init(DATA_DIR)
         # Every body ever described, per system, on disk (1.10034): the
@@ -4086,6 +4343,9 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         self.presence = DRP.Presence()
         self.presence_threaded = True
         self.after(3000, self.find_voice_packs)
+        # The audio devices, read on a thread of their own (1.10042, G2).
+        self.audio = AD.DeviceList(AUDIO_BACKEND)
+        self.after(1200, self.audio.reload)
         self.sonar = SN.Sonar()
         self.directions = VO.DirectionsTimer(
             VO.directions_every(self.settings.get("voice_directions_s")))
@@ -4110,8 +4370,75 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
             self.after(2500, lambda: self.say(notice, AMBER))
         if self.settings.get("overlay_enabled"):
             self.after(600, self.follow_vehicle_overlay)
-        if self.settings.get("voice_mode"):
-            self.after(1500, lambda: self.speak("online"))
+        if VQ.ask_due(self.settings, APP_VERSION):
+            # 1.10042 (G6): "Do you want EDSMT to speak?" is put before any
+            # voice is heard: nothing is spoken until it is answered.
+            self._voice_unasked = True
+        self.first_run_windows()
+        # Once, a couple of seconds in, so it never delays the window
+        # appearing and never blocks anything if the site is unreachable.
+        self.after(2500, lambda: self.updates.check(APP_VERSION))
+        # 1.10042: a dated backup of the settings and your own data, made on
+        # a thread of its own once the window is up.
+        self.after(3500, self.start_backup)
+        # 1.10042: the deposits you drove onto and did not answer for.
+        self.after(5000, self.start_checks)
+        self._tick_job = self.after(400, self.tick)
+        self.after(450, self.fast_tick)
+        # 1.10040 (#323): a launcher can see EDSMT is running - which
+        # version, which process, and its picture. Removed on a clean exit.
+        self.hub_file = HM.announce(APP_VERSION, os.path.join(IMAGES_DIR, LG.BADGE_SMALL),
+                                    log=self.applog.write)
+
+    def start_backup(self, place=None):
+        """The backup at every start (1.10042): off the window's thread, one
+        status line when it is done, never a crash. `place` is where the
+        tests send it."""
+        if getattr(self, "_start_backup_job", None):
+            return
+        self.backup_place = place or STB.Place()
+        outcome = {}
+        settings = dict(self.settings)
+
+        def work():
+            outcome["result"] = STB.run(DATA_DIR, settings, self.backup_place)
+
+        worker = threading.Thread(target=work, name="start-backup", daemon=True)
+        self._start_backup_job = worker
+        worker.start()
+        self._start_backup_wait(outcome, 0)
+
+    def _start_backup_wait(self, outcome, tries):
+        if "result" not in outcome:
+            if tries < 240 and self._start_backup_job.is_alive():
+                self.after(500, lambda: self._start_backup_wait(outcome, tries + 1))
+            return
+        path, wrote, problem = outcome["result"]
+        if problem:
+            self.say("The backup made at start could not be written: %s" % problem, AMBER)
+        else:
+            try:
+                self.applog.write("start backup: %s (%d files)" % (path, wrote))
+            except (OSError, AttributeError, ValueError):
+                pass
+
+    # -- the first run ---------------------------------------------------
+
+    def first_run_windows(self):
+        """What a start shows by itself, in order: the voice question, once;
+        then the first question, the welcome of a new version, the tour."""
+        if VQ.ask_due(self.settings, APP_VERSION):
+            # 1.10042 (G6): "Do you want EDSMT to speak?" comes before any
+            # voice is heard; the welcome and the rest wait for the answer.
+            self._voice_unasked = True
+            self.after(600, lambda: self.ask_to_speak(self.first_windows))
+        else:
+            if self.settings.get("voice_mode"):
+                self.after(1500, lambda: self.speak("online"))
+            self.first_windows()
+
+    def first_windows(self):
+        """What a start puts in front of the commander, once each."""
         if not self.settings.get("asked_to_share"):
             self.after(900, self.ask_to_share)
         elif WL.welcome_due(self.settings, APP_VERSION):
@@ -4122,17 +4449,32 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
             # Everyone already past the first question sees the tour once,
             # on the first start of 1.10034 (#166).
             self.after(1500, self.start_tour)
-        # Once, a couple of seconds in, so it never delays the window
-        # appearing and never blocks anything if the site is unreachable.
-        self.after(2500, lambda: self.updates.check(APP_VERSION))
-        self._tick_job = self.after(400, self.tick)
-        self.after(450, self.fast_tick)
-        # 1.10040 (#323): a launcher can see EDSMT is running - which
-        # version, which process, and its picture. Removed on a clean exit.
-        self.hub_file = HM.announce(APP_VERSION, os.path.join(IMAGES_DIR, LG.BADGE_SMALL),
-                                    log=self.applog.write)
 
-    # -- the first run ---------------------------------------------------
+    def ask_to_speak(self, then=None):
+        """The voice question (1.10042, G6), once. `then` runs when it is
+        answered or closed. The window, or None when it could not open (the
+        start then goes on without it, and it is asked again next time)."""
+        try:
+            self.voice_question = VoiceQuestionWindow(self, then)
+        except Exception as exc:
+            self._voice_unasked = False
+            self.say("Could not put the voice question: %s - Settings > Audio "
+                     "has it whenever you want it." % exc, AMBER)
+            if then:
+                then()
+            return None
+        return self.voice_question
+
+    def voice_answered(self, key):
+        """The answer to the voice question: kept, and the voice (not before
+        now) may be heard. Choose a voice goes on to Settings > Audio."""
+        self.settings.update(VQ.answer(key))
+        self._voice_unasked = False
+        save_settings(self.settings)
+        if self.settings.get("voice_mode") and not VQ.opens_settings(key):
+            self.after(300, lambda: self.speak("online"))
+        if VQ.opens_settings(key):
+            self.after(50, lambda: self.open_settings("Audio"))
 
     def show_welcome(self, force=False):
         """The welcome window (1.10040, #309): by itself on the first start of
@@ -4370,6 +4712,8 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                                        DEFAULT_SETTINGS["hotkey_" + action]) or "")
                   for action in actions}
         wanted["zoom"] = str(data.get("hotkey_zoom", SCOPE_ZOOM_KEY) or "")
+        wanted["pin_skip"] = str(data.get("hotkey_pin_skip", "") or "")
+        wanted["sites"] = str(data.get("hotkey_sites", "") or "")
         for name, fallback in GD.WAYPOINT_KEYS:
             wanted[name[len("hotkey_"):]] = str(data.get(name, fallback) or "")
         return {action: key for action, key in wanted.items() if key.strip()}
@@ -4488,7 +4832,47 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                           cargo=self.overlay_cargo(),
                           hazard=self.overlay_hazard(),
                           rigplan=self.plan_marks(), wing=self.wing_marks(),
-                          zone=self.zone_card())
+                          zone=self.zone_card(), lines=self.status_lines())
+
+    def status_lines(self):
+        """The extra STATUS lines (1.10042): SRV fuel, tonnes an hour and
+        merits this session, each behind its own switch. Never raises."""
+        try:
+            watcher = attr(self, "watcher")
+            books = attr(self, "earnings")
+            run = books.rhino if books is not None else None
+            return STL.build(
+                self.settings, bool(getattr(watcher, "in_srv", False)),
+                getattr(watcher, "fuel_main", None),
+                bool(getattr(watcher, "low_fuel", False)),
+                SV.tonnes_per_hour(run) if run else None,
+                getattr(watcher, "power", ""),
+                session_merits_earned(self, run) if run else 0,
+                fill=self.fill_lines(run))
+        except Exception:
+            return {}
+
+    def fill_lines(self, run=None, now=None):
+        """When the Rhino and the ship will be full, and how long Rhino loads
+        take (1.10042) - only in the Rhino. The rate is the load under way's,
+        else the session's. Never raises."""
+        try:
+            watcher = attr(self, "watcher")
+            if not getattr(watcher, "in_srv", False):
+                return {}
+            now = time.time() if now is None else now
+            clock = attr(self, "fill_clock", None)
+            rate = clock.rate(now) if clock is not None else None
+            if rate is None and run:
+                rate = SV.tonnes_per_hour(run) or None
+            rhino = getattr(watcher, "srv_total", None)
+            out = {"rhino": FT.rhino_text(rhino, rate),
+                   "ship": FT.ship_text(self.ship_card(), rhino, rate)}
+            if clock is not None:
+                out["load"] = FT.load_text(clock.last_load(), clock.average(), clock.loads_timed())
+            return {key: value for key, value in out.items() if value}
+        except Exception:
+            return {}
 
     def guide_facts(self):
         """What the guide can see has been done, on the signal being worked."""
@@ -4738,7 +5122,8 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         self.plan = PlanView(centre, on_select=self.picked_on_map,
                              on_edit=self.edit_deposit,
                              on_edit_rig=self.edit_rig,
-                             on_plan_ring=self.place_planning_ring)
+                             on_plan_ring=self.place_planning_ring,
+                             on_menu=self.map_menu)
         self.plan.grid(row=1, column=0, sticky="nsew", padx=10, pady=(6, 10))
         bracket(centre, colour=ORANGE)
         self.show_marker_colour()
@@ -5003,9 +5388,13 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         for label, command in (
                 ("Welcome", lambda: self.show_welcome(force=True)),
                 ("Show me round", lambda: self.start_tour(force=True)),
+                ("Map key - how to customise the map", lambda: self.open_map_key()),
                 ("User guide", lambda: self.open_page(WL.GUIDE_URL)),
                 ("Report a bug", lambda: self.open_page(WL.ISSUES_URL)),
-                ("Changelog", lambda: self.open_page(WL.CHANGELOG_URL))):
+                ("Changelog", lambda: self.open_page(WL.CHANGELOG_URL)),
+                ("What did it say? - the last spoken lines", lambda: self.open_voice_history()),
+                ("Voice packs: HCS (affiliate link)", lambda: self.open_page(WL.HCS_URL)),
+                (RC.HOWTO_TITLE + " - checking deposits", lambda: self.open_keeping_right())):
             self.help_menu.add_command(label=label, command=command)
         self.btn_help = tip(ctk.CTkButton(side, text="Help", width=64, height=SPACE["button_h"],
                                           font=F_STRONG, **BTN_SECONDARY,
@@ -5110,6 +5499,7 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
     def open_help_menu(self):
         """Help's menu, dropped down under the button."""
         button = attr(self, "btn_help")
+        self.refresh_go_back_item()
         try:
             self.help_menu.tk_popup(button.winfo_rootx(),
                                     button.winfo_rooty() + button.winfo_height())
@@ -5118,6 +5508,149 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                 self.help_menu.grab_release()
             except Exception:
                 pass
+
+    def refresh_go_back_item(self):
+        """Help's last entry, Go back to the previous version, is there only
+        when a previous program file is kept (1.10042, portable build)."""
+        menu = attr(self, "help_menu")
+        if menu is None:
+            return False
+        want = build_kind() == "portable" and RL.has_previous()
+        try:
+            last = menu.index("end")
+            shown = last is not None and menu.entrycget(last, "label") == GO_BACK_LABEL
+            if shown and not want:
+                menu.delete(last)
+            elif want and not shown:
+                menu.add_command(label=GO_BACK_LABEL,
+                                 command=self.go_back_to_previous)
+        except Exception:
+            return False
+        return want
+
+    def go_back_to_previous(self, ask=None):
+        """Put the previous program file back and start it (1.10042). Asks
+        first; `ask` is for the checks. Your finds and settings are not
+        touched."""
+        if build_kind() != "portable" or not RL.has_previous():
+            return self.say("There is no previous version kept.", AMBER)
+        if ask is None:
+            try:
+                from tkinter import messagebox
+                ask = lambda text: messagebox.askyesno("EDSMT", text, parent=self)
+            except Exception:
+                ask = lambda text: False
+        if not ask("Go back to the previous version of EDSMT? It closes and "
+                   "starts again. Your finds and settings are kept."):
+            return False
+        self._save_on_exit()
+        try:
+            previous = [RL.go_back()]
+        except (OSError, ValueError) as exc:
+            self.say("Could not go back: %s" % exc, RED)
+            return False
+        release_single_instance()
+        try:
+            RL.start(previous)
+        except Exception as exc:
+            claim_single_instance()
+            self.say("Could not start the previous version: %s" % exc, RED)
+            return False
+        self.on_close()
+        return True
+
+    def open_keeping_right(self):
+        """The how-to for checking the map (1.10042): the same words as the
+        guide. One window; asking again brings it forward."""
+        window = attr(self, "keeping_window")
+        try:
+            if window is not None and window.winfo_exists():
+                return window
+        except Exception:
+            pass
+        self.keeping_window = KeepingRightWindow(self)
+        return self.keeping_window
+
+    def open_map_key(self):
+        """The map's key (1.10042): what every mark is, and a switch for
+        each layer. One window; asking again brings it forward."""
+        window = attr(self, "map_key_window")
+        try:
+            if window is not None and window.winfo_exists():
+                window.lift()
+                window.focus_force()
+                return window
+        except Exception:
+            pass
+        try:
+            self.map_key_window = MapKeyWindow(self)
+        except Exception as exc:
+            self.say("Could not open the map key: %s" % exc, RED)
+            return None
+        return self.map_key_window
+
+    def open_voice_history(self):
+        """What did it say? (1.10042): the last 50 spoken lines, with their
+        time. One window; asking again brings it forward."""
+        window = attr(self, "voice_history_window")
+        try:
+            if window is not None and window.winfo_exists():
+                window.refresh()
+                window.lift()
+                window.focus_force()
+                return window
+        except Exception:
+            pass
+        try:
+            self.voice_history_window = VoiceHistoryWindow(self)
+        except Exception as exc:
+            self.say("Could not open the voice history: %s" % exc, RED)
+            return None
+        return self.voice_history_window
+
+    def set_map_layer(self, name, on):
+        """Switch one layer of the map and the scope on or off, kept in
+        settings. True when it is a layer."""
+        key = MK.setting_of(name)
+        if not key:
+            return False
+        self.settings[key] = bool(on)
+        save_settings(self.settings)
+        window = attr(self, "map_key_window")
+        try:
+            if window is not None and window.winfo_exists():
+                window.show_layers()
+        except Exception:
+            pass
+        self.redraw()
+        self.say("Map: %s %s. Right-click the map, or Settings > Overlay > Map and "
+                 "scope, to change it back." % (MK.label_of(name).lower(),
+                                                "shown" if on else "hidden"), GREEN)
+        return True
+
+    def map_menu(self, action, what=None):
+        """What the map's right-click menu and its "?" ask for (1.10042).
+        Never raises: a fault is said, and the map stays up."""
+        try:
+            if action == "key":
+                return self.open_map_key()
+            if action == "layer":
+                return self.set_map_layer(what[0], what[1])
+            if action == "wp_remove":
+                return self.wp_remove(what)
+            if action == "wp_skip":
+                return self.wp_skip()
+            if action in ("rig_up", "rig_commodity"):
+                mark = what or {}
+                if action == "rig_commodity":
+                    return self.edit_rig(mark)
+                rig = self.rig_for(mark.get("label") or mark.get("n"))
+                if rig is None:
+                    return self.say("That rig is not marked down any more.", AMBER)
+                return self.pick_up_rig(rig)
+        except Exception as exc:
+            self.trouble("Map menu", exc)
+        return None
 
     def open_page(self, url):
         """A web page in the browser, said on the status line either way."""
@@ -5486,6 +6019,8 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                 if note.get("event") == "Refined":
                     self.credit_refined(note)
                     self.refine_check(note)
+                    # 1.2: the tonne put against the rig it came from.
+                    self.rig_fill(note)
                 # The picture first: coming aboard takes the rigs off the map.
                 self.dock_picture(note)
                 self.rigs_on_vehicle(note)
@@ -5544,8 +6079,25 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                 self.trouble("Leaderboard", exc)
             try:
                 self.follow_crowd()
+                self.send_tonnes_catchup()
+                self.follow_now()
             except Exception as exc:
                 self.trouble("Community figures", exc)
+            try:
+                # The Rhino's loads, timed (1.10042): what it holds now.
+                if attr(self, "fill_clock", None) is None:
+                    self.fill_clock = FT.FillClock()
+                self.fill_clock.note(getattr(attr(self, "watcher"), "srv_total", None), time.time())
+                # 1.2: Rhino full soon, ship full soon, hold full.
+                self.fill_cues()
+            except Exception as exc:
+                self.trouble("Timing the Rhino load", exc)
+            try:
+                # 1.2: one of yours near you due a check; a new ribbon step.
+                self.due_cue()
+                self.ask_ribbons()
+            except Exception as exc:
+                self.trouble("Voice lines", exc)
             try:
                 # 1.10040 (#302): marks made with no connection go when
                 # there is one.
@@ -5733,6 +6285,8 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
             table["rig%dup" % n] = ("Rig %d up" % n,
                                     lambda n=n: self.rig_up(n))
         table["zoom"] = ("Scope zoom", self.cycle_scope_zoom)
+        table["pin_skip"] = ("Rig planner", self.skip_pin)
+        table["sites"] = ("My sites", self.show_sites_key)
         table["wp_next"] = ("Survey waypoint", self.wp_next)
         table["wp_back"] = ("Survey waypoint", self.wp_back)
         table["wp_skip"] = ("Survey waypoint", self.wp_skip)
@@ -6102,7 +6656,7 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                 signal=inputs["signal"], anchor=inputs["anchor"],
                 survey=inputs["survey"], rigs=inputs["rigs"], trail=inputs["trail"],
                 cmdr=cmdr, when=when if when is not None else time.time(),
-                version=APP_VERSION, colour=colour_for)
+                version=SHOWN_VERSION, colour=colour_for, golden_m=self.golden_radius())
             out.update(image=image, scene=scene, name=MI.picture_name(
                 inputs["system"], inputs["body"], inputs["signal"], when))
             if save:
@@ -6149,7 +6703,7 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
             return out
         try:
             image, _scene = MI.render_map(rows, system=system, body=body, signal=spot or "",
-                                          cmdr="", when=time.time(), version=APP_VERSION,
+                                          cmdr="", when=time.time(), version=SHOWN_VERSION,
                                           colour=colour_for, note=out["note"])
             folder = MI.pictures_dir(DATA_DIR)
             out["path"] = MI.save_picture(image, os.path.join(folder, SCD.picture_name(system, body, spot)))
@@ -6298,11 +6852,11 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         except Exception as exc:
             return json.dumps(dict(told, error=str(exc)))
 
-    def discord_edit_job(self, hook, payload, sid, message_id, keep, name=""):
+    def discord_edit_job(self, hook, payload, sid, message_id, keep, name="", files=()):
         told = {"edsmt_session": sid, "edsmt_hook": WH.hook_key(hook), "name": name,
                 "edit": True}
         try:
-            reply = EDO.discord_edit(hook, message_id, payload, keep=keep)
+            reply = EDO.discord_edit(hook, message_id, payload, keep=keep, files=files)
             return json.dumps(dict(told, message=reply))
         except Exception as exc:
             return json.dumps(dict(told, error=str(exc)))
@@ -6335,13 +6889,22 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                     continue
                 if entry.get("image"):
                     summary["image"] = entry["image"]
+                keep, files = list(entry.get("attachments") or []), []
+                if str(entry.get("image") or "").startswith("card_"):
+                    # The card is the picture the summary shows: drawn again
+                    # with the sale, in place of the old one (1.10042).
+                    fresh = self.discord_card(row, self.discord_picture(row))
+                    names = entry.get("names") or {}
+                    if fresh and names:
+                        keep = [a for a in keep if not names.get(a, "").startswith("card_")]
+                        files = [(entry["image"], fresh[1])]
                 payload = EDO.discord_session_message(
                     row, row.get("cmdr") or "", when=entry.get("when"), summary=summary)
                 book.edited(key, state)
                 self.send_discord(
                     EDO.DISCORD_TAG,
-                    lambda p=payload, s=sid, m=entry["id"], k=list(entry.get("attachments") or []):
-                    self.discord_edit_job(hook, p, s, m, k, name))
+                    lambda p=payload, s=sid, m=entry["id"], k=keep, f=files:
+                    self.discord_edit_job(hook, p, s, m, k, name, files=f))
                 queued += 1
             return queued
         except Exception:
@@ -6466,6 +7029,7 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         self.say(line, GREEN)
         self.flash("SELLING HERE", "%d t - %s cr" % (found["tonnes"], PS.money(found["credits"])),
                    GREEN)
+        self.sell_cue(found)
         return line
 
     def note_prices(self, note):
@@ -6872,6 +7436,15 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         if row is not None:
             if CR.first_tonne_back(row, note.get("commodity")):
                 self.report_regrown(row, "refined", SV._epoch(note.get("when")) or None)
+                # 1.10042 (E6): the first tonne takes the worked-out mark off.
+                row = self.store.update_deposit(row["id"], **RG.first_tonne_changes(row)) or row
+                try:
+                    self.refresh_deposits()
+                    self.redraw()
+                    self.say("%s is giving tonnes again - the worked-out mark is off."
+                             % (row.get("commodity") or "A deposit"), GREEN)
+                except Exception as exc:
+                    self.trouble("Taking off the worked-out mark", exc)
             self._refined_dirty = True
             self._refined_at = attr(self, "_refined_at", 0.0) or time.time()
             self._tonnes_changed = (str(row.get("id")), time.time())
@@ -7566,28 +8139,484 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         left alone until you drive onto another.
         """
         if not (getattr(state, "has_position", False) and getattr(state, "in_srv", False)):
+            # Out of the SRV is leaving the deposit (1.10042).
+            self.check_left()
+            self._on_deposit = None
             return
         found = self.own_deposit_here("")
-        at = str(found[0].get("id")) if found else None
+        # 1.2: none of yours under you - another commander's find, perhaps.
+        other = None if found else self.other_deposit_here()
+        at = str(found[0].get("id")) if found else (str(other[0].get("id")) if other else None)
         if at == attr(self, "_on_deposit", None):
             return
         self._on_deposit = at
+        self.check_left()
         if found is None:
+            if other is not None:
+                self.ask_theirs(other[0])
             return
         deposit, metres = found
+        self.fill_rail(deposit)
+        self.ask_still_there(deposit)
         if at == attr(self, "_guide_to", None):
             self._guide_to = None
+            self.far_arrived(at)
         self.speak("arrived")
+        # 1.2: worth a lot? how much is left?
+        self.deposit_cues(deposit)
         chosen = attr(self, "selected", None)
         if chosen and str(chosen.get("id")) == at:
             return
         try:
             self.pick_deposit(deposit, guide=False)
             self.say("On your %s deposit, %s away - picked, so MINED OUT and "
-                     "UPDATE act on it." % (deposit.get("commodity") or "unnamed",
-                                             _metres(metres)), CYAN)
+                     "UPDATE act on it. The boxes on the left show what is "
+                     "recorded for it." % (deposit.get("commodity") or "unnamed",
+                                           _metres(metres)), CYAN)
         except Exception as exc:
             self.trouble("Deposit you are on", exc)
+
+    def fill_rail(self, deposit):
+        """Put a deposit's recorded commodity, rigs, amount and density in
+        the rail's boxes (1.10042). Done once as you drive onto it, so UPDATE
+        starts from what is on record - not from the last deposit you worked
+        on - and writes only what you then change. Never raises."""
+        try:
+            for key in ("commodity", "rigs", "amount", "density"):
+                box = self.fields.get(key)
+                if box is not None:
+                    box.set(str(deposit.get(key) or ""))
+            return True
+        except Exception as exc:
+            self.trouble("Filling the boxes", exc)
+            return False
+
+    # -- 1.10042: live status for the Twitch bot (nowstatus.py) ------------
+
+    def journal_value(self, name, fallback=""):
+        """Something the journal reader holds, from the game's state or the
+        watcher, whichever has it."""
+        for source in (attr(self, "game"), attr(self, "watcher")):
+            value = getattr(source, name, None)
+            if value:
+                return value
+        return fallback
+
+    def follow_now(self, now=None):
+        """About every half minute, with "Show my live status to the Radio
+        Raxxla Twitch bot" on: tell the community map what the stream card
+        says, the ship and the ranks. Switched off, it is taken down once.
+        Nothing is sent while the switch is off. Never raises."""
+        try:
+            # 1.2: "Live status on" / "off" as the switch is turned.
+            self.live_cue()
+            now = time.time() if now is None else now
+            community = attr(self, "community")
+            cmdr = str(getattr(attr(self, "watcher"), "cmdr", "") or "")
+            todo = NS.step(bool(self.settings.get("twitch_status")), attr(self, "_now_on", False),
+                           attr(self, "_now_sent", 0.0), now)
+            if todo is None or community is None or not cmdr:
+                return False
+            if todo == "clear":
+                self._now_on = False
+                return bool(community.send_now(cmdr, None))
+            status = NS.build(self.stream_now(now),
+                              ship_type=self.journal_value("ship_label") or self.journal_value("ship_type"),
+                              ship_name=self.journal_value("ship_name"),
+                              ranks=NS.rank_names(self.journal_value("ranks", None)),
+                              version=APP_VERSION)
+            self._now_on, self._now_sent = True, now
+            return bool(community.send_now(cmdr, status))
+        except Exception as exc:
+            self.trouble("Live status", exc)
+            return False
+
+    # -- 1.2: the new Basic lines (basiccues.py) --------------------------
+
+    def say_once(self, line_id, kind, key):
+        """One of the new Basic lines, once for each thing it is about (a
+        deposit, a station). True when it was said now. Never raises."""
+        once = attr(self, "_cue_once", None)
+        if once is None:
+            once = self._cue_once = BC.Once()
+        if not key or not once.first(kind, key):
+            return False
+        return bool(self.speak(line_id))
+
+    def value_cue(self, deposit):
+        """"value_best" or "value_top" for a deposit whose commodity is one of
+        the five best-paying on the prices known, once a deposit. The line
+        said, or ""."""
+        try:
+            line = BC.value_line((deposit or {}).get("commodity"), self.mine_price, SV.COMMODITIES)
+        except Exception:
+            return ""
+        if line and self.say_once(line, "value", (deposit or {}).get("id")):
+            return line
+        return ""
+
+    def deposit_cues(self, deposit, marking=False):
+        """After marking a deposit, or driving onto one of yours: whether it
+        is worth a lot, whether it is in a rich patch (marking), and how much
+        is left in it (arriving). The lines said. Never raises."""
+        said = []
+        if not deposit or not deposit.get("id"):
+            return said
+        line = self.value_cue(deposit)
+        if line:
+            said.append(line)
+        try:
+            if marking:
+                if BC.rich_patch(deposit.get("id"), self.patch_rows(deposit)) \
+                        and self.say_once("rich_patch", "rich", deposit.get("id")):
+                    said.append("rich_patch")
+            else:
+                left, holds = self.left_now(deposit)
+                line = BC.left_line(left, holds)
+                if line and self.say_once(line, "left", deposit.get("id")):
+                    said.append(line)
+        except Exception as exc:
+            self.trouble("Deposit lines", exc)
+        return said
+
+    def patch_rows(self, deposit):
+        """The deposit's location, as the Sites window lists it: top patch first."""
+        return STR.deposits(self.store, deposit.get("system"), deposit.get("body"),
+                            deposit.get("location"), radius_m=self.golden_radius(),
+                            crowd=self.crowd_figures().tonnes)
+
+    def left_now(self, deposit):
+        """(what is thought to be left, what it holds), as the Sites window has them."""
+        peers = attr(attr(self, "store"), "deposits", None) or []
+        crowd = self.crowd_figures().tonnes
+        return STR.left(deposit, peers, crowd), STR.holds(deposit, peers, crowd)
+
+    def sell_cue(self, found):
+        """"Best price for your cargo is here" with the SELLING HERE flash,
+        when this board pays at least the best known for what makes most of
+        the sale - once a station. True when said."""
+        try:
+            if not BC.sells_best(found, lambda name: self.best_price(name)[0]):
+                return False
+            return self.say_once("sell_here", "sell", "%s|%s" % (found.get("station") or "",
+                                                                found.get("system") or ""))
+        except Exception:
+            return False
+
+    def fill_cues(self, now=None):
+        """In the Rhino, from the fill timers: Rhino full in five minutes,
+        the ship one load from full, hold full - each once a load. The lines
+        said. Never raises."""
+        try:
+            watcher = attr(self, "watcher")
+            if not getattr(watcher, "in_srv", False):
+                return []
+            now = time.time() if now is None else now
+            cues = attr(self, "_fill_cues", None)
+            if cues is None:
+                cues = self._fill_cues = BC.FillCues()
+            clock = attr(self, "fill_clock", None)
+            rate = clock.rate(now) if clock is not None else None
+            settings = attr(self, "settings", None) or {}
+            # Celestia, Chatty, says the Rhino is full in her own words.
+            hers = VO.clean_theme(settings.get("voice_theme")) == "celestia" \
+                and VO.clean_detail(settings.get("voice_detail")) == "chatty"
+            lines = cues.step(getattr(watcher, "srv_total", None), self.ship_card(), rate,
+                              rhino_full_said=hers)
+            for line in lines:
+                self.speak(line)
+            return lines
+        except Exception:
+            return []
+
+    def due_cue(self, now=None):
+        """Once a minute, on a body: one of yours within 2 km due a check
+        (the Due a check window's rule), said once for that deposit - not the
+        one you are on, which Still there? asks about. The line, or ""."""
+        try:
+            now = time.time() if now is None else now
+            if now - attr(self, "_due_looked", -DUE_LOOK_S) < DUE_LOOK_S:
+                return ""
+            self._due_looked = now
+            state = attr(self, "game", None)
+            if state is None or not getattr(state, "has_position", False):
+                return ""
+            system, body = self.here()
+            if not (system and body):
+                return ""
+            here = {"system": system, "body": body, "lat": state.lat, "lon": state.lon,
+                    "radius_m": state.radius_m}
+            rows = RC.due_rows(attr(attr(self, "store"), "deposits", None) or [], now,
+                               regrow_days=self.crowd_figures().regrow_days, here=here)
+            ident = BC.due_near(rows, skip=attr(self, "_on_deposit", None))
+            if ident and self.say_once("due_check", "due", ident):
+                return "due_check"
+        except Exception:
+            return ""
+        return ""
+
+    def ask_ribbons(self, now=None):
+        """With Voice Mode on, every RIBBON_LOOK_S: ask the community map for
+        this commander's ribbon steps, for "New ribbon earned". Reading only.
+        True when asked."""
+        try:
+            now = time.time() if now is None else now
+            if not (attr(self, "settings", None) or {}).get("voice_mode"):
+                return False
+            if now - attr(self, "_ribbons_asked", -RIBBON_LOOK_S) < RIBBON_LOOK_S:
+                return False
+            community = attr(self, "community")
+            cmdr = str(getattr(attr(self, "watcher"), "cmdr", "") or "")
+            if community is None or not cmdr:
+                return False
+            self._ribbons_asked = now
+            return bool(community.ribbons(cmdr))
+        except Exception:
+            return False
+
+    def take_ribbons(self, ok, message):
+        """The map's ribbons answer: the first only notes the count; a higher
+        count after it is a new ribbon step. The line said, or ""."""
+        if not ok:
+            return ""
+        try:
+            answer = json.loads(message)
+        except (TypeError, ValueError):
+            return ""
+        cmdr = str(getattr(attr(self, "watcher"), "cmdr", "") or "")
+        before = attr(self, "_ribbons_seen", None)
+        if attr(self, "_ribbons_for", None) != cmdr:
+            before = None
+        count = BC.ribbon_count(answer)
+        new = BC.ribbon_new(before, answer)
+        if count is not None:
+            self._ribbons_seen, self._ribbons_for = count, cmdr
+        if not new:
+            return ""
+        self.say("New ribbon earned on the community map.", GREEN)
+        self.speak("ribbon_earned")
+        return "ribbon_earned"
+
+    def live_cue(self):
+        """"Live status on" or "Live status off" when the Twitch live-status
+        switch has just been turned; nothing at start. The line, or ""."""
+        now = bool((attr(self, "settings", None) or {}).get("twitch_status"))
+        line = BC.live_change(attr(self, "_live_seen", None), now)
+        self._live_seen = now
+        if line:
+            self.speak(line)
+        return line or ""
+
+    # -- 1.10042: keeping the map right (recheck.py) ----------------------
+
+    @property
+    def visits(self):
+        """The deposits driven onto and not answered, kept in the settings."""
+        return RC.Visits(self.settings)
+
+    def ask_still_there(self, deposit):
+        """Driving onto a deposit of yours that is not worked out: the overlay
+        and the voice ask once "Still there? UPDATE or MINED OUT". Not for one
+        you answered a few minutes ago. Never raises."""
+        try:
+            if SV.is_depleted(deposit.get("amount")) \
+                    or RC.recently_checked(deposit, time.time()):
+                self._asking = None
+                return False
+            self._asking = {"id": str(deposit.get("id")),
+                            "commodity": deposit.get("commodity") or ""}
+            self.flash(RC.ASK, str(deposit.get("commodity") or "")[:30], AMBER)
+            self.say(RC.ASK, AMBER)
+            self.speak("still_there")
+            return True
+        except Exception as exc:
+            self.trouble("Still there?", exc)
+            return False
+
+    def other_deposit_here(self):
+        """(row, metres): another commander's find from the community map
+        within SAME_DEPOSIT_M of you, the nearest, or None. Not one of yours
+        come back from the map (1.2)."""
+        state = attr(self, "game", None)
+        if state is None or not getattr(state, "has_position", False):
+            return None
+        system, body = self.here()
+        me = SV.fold(getattr(attr(self, "watcher"), "cmdr", "") or "")
+        radius = getattr(state, "radius_m", None) or 1e6
+        best = None
+        for row in self.shared_finds_on(system, body):
+            if me and SV.fold(row.get("cmdr") or "") == me:
+                continue
+            try:
+                metres = SV.surface_range_m(state.lat, state.lon, float(row["lat"]),
+                                            float(row["lon"]), radius)
+            except (KeyError, TypeError, ValueError):
+                continue
+            if metres <= SAME_DEPOSIT_M and (best is None or metres < best[1]):
+                best = (row, metres)
+        return best
+
+    def ask_theirs(self, row):
+        """Driving onto another commander's find with none of yours under you
+        (1.2): asked once, "Still there? UPDATE or MINED OUT". Either answer
+        goes on the community map for everyone. Not one worked out, nor one
+        somebody reported today. Never raises."""
+        try:
+            if SV.is_depleted(row.get("amount")) or RC.seen_lately(row, time.time()):
+                self._asking = None
+                return False
+            self._asking = {"id": str(row.get("id")), "commodity": row.get("commodity") or "",
+                            "theirs": row}
+            self.flash(RC.ASK, str(row.get("commodity") or "")[:30], AMBER)
+            self.say(RC.theirs_line(row), AMBER)
+            self.speak("still_there")
+            return True
+        except Exception as exc:
+            self.trouble("Still there?", exc)
+            return False
+
+    def answer_theirs(self, still):
+        """UPDATE (still there) or MINED OUT, answering Still there? for
+        another commander's find: told to the community map. True when it
+        was the answer."""
+        asking = attr(self, "_asking", None)
+        row = (asking or {}).get("theirs")
+        if not row:
+            return False
+        self._asking = None
+        system, body = row.get("system") or "", row.get("body") or ""
+        spot = str(row.get("location") or "1")
+        cmdr = str(getattr(attr(self, "watcher"), "cmdr", "") or "")
+        whose = "%s's %s deposit" % (row.get("cmdr") or "Another commander",
+                                     row.get("commodity") or "unnamed")
+        community = attr(self, "community")
+        try:
+            if still:
+                sent = bool(community.report_seen(cmdr, system, body, spot))
+                row["when"] = RG.stamp(time.time())
+                self.say("%s: %s as still there today." % (
+                    whose, "on the community map" if sent else "noted here; the map could not be told"),
+                    GREEN)
+                self.speak("deposit_updated")
+            else:
+                sent = bool(community.report_depletion(cmdr, system, body, spot))
+                row["amount"] = "Depleted"
+                self.say("%s: %s as worked out." % (
+                    whose, "on the community map" if sent else "noted here; the map could not be told"),
+                    GREEN)
+                self.speak("mined_out")
+            self.redraw()
+        except Exception as exc:
+            self.trouble("Still there?", exc)
+        return True
+
+    def shared_due(self, now, here, names=None):
+        """Other commanders' finds EDSMT has fetched, due a check by the same
+        rule as yours, nearest first, each saying whose it is (1.2). Not
+        yours come back from the map. Never raises."""
+        try:
+            me = SV.fold(getattr(attr(self, "watcher"), "cmdr", "") or "")
+            book = attr(self, "shared", None)
+            rows = []
+            for entry in (book.values() if isinstance(book, dict) else ()):
+                for row in entry.get("rows") or []:
+                    if me and SV.fold(row.get("cmdr") or "") == me:
+                        continue
+                    if names and SV.fold(SV.canonical(row.get("commodity")) or row.get("commodity")) \
+                            not in names:
+                        continue
+                    item = RC.shared_checkable(row, now)
+                    if item is not None:
+                        rows.append(item)
+            try:
+                regrow = self.crowd_figures().regrow_days
+            except Exception:
+                regrow = None
+            found = RC.due_rows(rows, now, regrow_days=regrow, here=here)
+            for item in found:
+                item["words"] = "%s - %s's" % (item["words"],
+                                               item["deposit"].get("cmdr") or "another commander")
+                item["theirs"] = True
+            return found
+        except Exception:
+            return []
+
+    def check_left(self):
+        """You have driven off. A question left unanswered is one line, and
+        the deposit goes on the list for the next start."""
+        asking = attr(self, "_asking", None)
+        self._asking = None
+        if not asking:
+            return False
+        if asking.get("theirs"):
+            # Another commander's find: nothing goes on your own list.
+            return False
+        self.visits.add(asking["id"], time.time())
+        self.save_visits()
+        self.say(RC.left_line(asking["commodity"]), AMBER)
+        return True
+
+    def save_visits(self):
+        try:
+            save_settings(self.settings)
+        except Exception as exc:
+            self.trouble("Saving the list to check", exc)
+
+    def answered(self, deposit_id):
+        """UPDATE, MINED OUT or a click on the list answered for a deposit:
+        the question is closed and it is off the list."""
+        asking = attr(self, "_asking", None)
+        if asking and asking.get("id") == str(deposit_id):
+            self._asking = None
+        if str(deposit_id) in self.visits.ids():
+            self.visits.clear(deposit_id)
+            self.save_visits()
+
+    def start_checks(self):
+        """A few seconds after start: the visited-not-updated list, if there
+        is one. A small window beside the main one; nothing waits on it."""
+        try:
+            return self.show_visited_list()
+        except Exception as exc:
+            self.trouble("The list to check", exc)
+            return None
+
+    def show_visited_list(self):
+        """The deposits you drove onto and did not answer for, each with
+        Still there / Mined out / Skip. None - and no window - when the list is
+        empty."""
+        rows = self.visits.pending(attr(self.store, "deposits", None))
+        if not rows:
+            self.save_visits()
+            return None
+        window = attr(self, "visited_window", None)
+        try:
+            if window is not None and window.winfo_exists():
+                window.refresh()     # never raised over the game or the window
+                return window
+        except Exception:
+            pass
+        self.visited_window = VisitedWindow(self)
+        return self.visited_window
+
+    def visit_answer(self, deposit_id, how):
+        """One click on the list. "still" is a check - shared as it stands and
+        stamped; "mined" is MINED OUT; "skip" only takes it off the list."""
+        row = next((d for d in self.store.deposits if str(d.get("id")) == str(deposit_id)), None)
+        if row is None:
+            self.answered(deposit_id)
+            return None
+        if how == "still":
+            changes = RC.checked_changes()
+            changes["notes"] = SV.stamp_note(row.get("notes"), "Checked: still there")
+            row = self.store.update_deposit(row["id"], **changes) or row
+            self.share(row)
+            self.refresh_deposits()
+        elif how == "mined":
+            self.selected = row
+            self.mark_mined()
+        self.answered(deposit_id)
+        return row
 
     def follow_target(self, state):
         """Pick the signal the game has targeted, once each time it changes.
@@ -7958,6 +8987,8 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                        "signal %s" % record.get("location")
                        if record.get("location") else "") if bit))
         self.speak("deposit_marked")
+        # 1.2: worth a lot? in a rich patch?
+        self.deposit_cues(record, marking=True)
 
     def clear_deposit_boxes(self):
         """Empty Rigs, Amount and Density - not the commodity, which the
@@ -8954,6 +9985,10 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         mates = self.wing_here()
         if not mates:
             return None
+        # 1.10042: a rig a wingmate has picked up is kept, marked collected,
+        # until you leave the body - the game keeps showing it that long.
+        self._wing_kept, mates = WM.keep_collected(attr(self, "_wing_kept", None),
+                                                   tuple(self.here()), mates)
         colours = self.wing_colour_map(self.wing_mates_all())
 
         def rel(lat, lon):
@@ -8968,6 +10003,10 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
             for rig in mate.get("rigs") or []:
                 re_, rn = rel(rig["lat"], rig["lon"])
                 rigs.append({"n": rig.get("n"), "east": re_, "north": rn})
+            collected = []
+            for rig in mate.get("collected") or []:
+                re_, rn = rel(rig["lat"], rig["lon"])
+                collected.append({"n": rig.get("n"), "east": re_, "north": rn})
             name = str(mate.get("name") or "") or "wingmate"
             # 1.10040 (#171): their sweep and their finds, in their colour.
             sweep, finds = [], []
@@ -8990,6 +10029,7 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
             marks.append({"name": name, "east": east, "north": north,
                           "heading": mate.get("heading"),
                           "in_srv": bool(mate.get("in_srv")), "rigs": rigs,
+                          "collected": collected,
                           "colour": colours.get(WM.fold(name)) or OV.WING_COLOUR,
                           "sweep": sweep, "scan_m": scan, "finds": finds})
         return {"mates": marks} if marks else None
@@ -9062,6 +10102,33 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                         label, _metres(metres), _metres(self.planner_spacing())),
                     "colour": RED, "kind": "too_close"}
         return None
+
+    def rig_fill(self, note):
+        """A refined tonne put against the rig it came from (rigfill.py),
+        counted from the journal: a rig reaching 12 is flashed full. The rig
+        credited, or None. Never raises."""
+        try:
+            rigs_at = attr(self, "rigs_at", None)
+            if not rigs_at or not isinstance(note, dict):
+                return None
+            if (SV.fold(note.get("system")), SV.fold(note.get("body"))) != \
+                    (SV.fold(rigs_at.get("system")), SV.fold(rigs_at.get("body"))):
+                return None
+            rig = RF.credit(rigs_at.get("rigs") or [], note)
+            if rig is None:
+                return None
+            self.refresh_rigs_note()
+            if RF.count(rig) == RF.RIG_HOLDS_T:
+                label = self.rig_label(rig)
+                self.flash("RIG %s FULL" % label, "%s t %s" % (RF.text(rig), rig.get("commodity") or ""))
+                self.say("Rig %s full: %s t of %s refined since it went down (counted from the "
+                         "journal%s)." % (label, RF.text(rig), rig.get("commodity") or "its commodity",
+                                         "; an estimate, with more than one rig on it"
+                                         if rig.get("guess") else ""), GREEN)
+            return rig
+        except Exception as exc:
+            self.trouble("Rig counts", exc)
+            return None
 
     def persist_rigs(self):
         """Write the rigs to disk when they have changed. Never raises."""
@@ -9207,7 +10274,10 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
             if owner is not None:
                 pin["owner"], pin["colour"] = owner
         waiting = [pin for pin in pins if not pin["done"]]
-        following = next((pin for pin in waiting if pin["mine"]), None)
+        # 1.10042: "skip this pin" leaves a pin out; the next of yours not
+        # left out is the one to drive to.
+        following = RP.following_pin([pin for pin in waiting if pin["mine"]],
+                                     self.pin_skips(plan))
         next_pin = None
         if following is not None:
             bearing = math.degrees(math.atan2(following["east"],
@@ -9217,6 +10287,7 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                         "offset": turn}
         return {"tracing": False, "pins": pins, "spacing": plan["spacing"],
                 "shared": bool(plan.get("shared")), "by": plan.get("by", ""),
+                "plan": plan,
                 "wing": bool(plan.get("wing")),
                 "outline": [offset(lat, lon) for lat, lon in plan["outline"]],
                 # The close-up is for pins still to drive to (reported 2
@@ -9554,8 +10625,9 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                 rhinos = max(1, len({r.get("srv") for r in rigs}))
                 note.configure(text="%d of %d rigs down on %s: %s." % (
                     len(rigs), MAX_RIGS * rhinos, self.rigs_at["body"],
-                    ", ".join(("%s %s" % (self.rig_label(r),
-                                          r.get("commodity") or "")).strip()
+                    ", ".join(("%s %s %s" % (self.rig_label(r),
+                                             r.get("commodity") or "",
+                                             RF.text(r))).strip()
                               for r in rigs)),
                     text_color=GREEN)
             else:
@@ -9568,6 +10640,15 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         Settings says. Windows' own exclamation if the file is missing, the
         bell if there is no sound at all."""
         path = warning_sound(bool(self.settings.get("rig_sound_profane")))
+        # 1.10042 (G2): with an audio device chosen the warning goes where the
+        # voice goes - through the speech process, which can be pointed at it.
+        speaker = attr(self, "voice", None)
+        if path and speaker is not None and self.point_audio(speaker):
+            try:
+                if speaker.say_file(path):
+                    return True
+            except Exception:
+                pass
         try:
             import winsound
             if path:
@@ -9595,10 +10676,15 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         speaker = attr(self, "voice", None)
         if speaker is None or not line_id or not (force or settings.get("voice_mode")):
             return False
+        if attr(self, "_voice_unasked", False) and not force:
+            return False        # no voice before the question is answered
+        self.voice_trouble()
         try:
             speaker.folders = voice_folders()
             speaker.set_rate(settings.get("voice_rate", VO.DEFAULT_RATE)
                              if rate is None else rate)
+            speaker.comms = settings.get("voice_comms", True) is not False
+            self.point_audio(speaker)
             said = bool(speaker.say_line(line_id, settings.get("voice_theme")
                                          if theme is None else theme,
                                          place=VO.place_from(attr(self, "game", None)),
@@ -9609,6 +10695,33 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         if said and cues is not None:
             cues.spoke(time.time())
         return said
+
+    def point_audio(self, speaker=None):
+        """Point the speaker at the audio device in Settings - the default
+        when none is chosen or the one chosen is not there (1.10042, G2).
+        Returns the device id used. Never raises."""
+        speaker = speaker or attr(self, "voice", None)
+        try:
+            listing = attr(self, "audio", None)
+            devices = listing.items() if listing is not None else None
+            device, _note = AD.choose((attr(self, "settings", None) or {}).get("audio_device"), devices)
+            speaker.set_device(device)
+            return device
+        except Exception:
+            return ""
+
+    def voice_trouble(self):
+        """Say on the status bar, once for each different problem, what
+        stopped the voice speaking (1.10042). Looked at as the next line is
+        spoken, so it costs nothing while the voice works. Never raises."""
+        try:
+            problem = attr(self, "voice").problem(since=attr(self, "_voice_told", 0.0))
+        except Exception:
+            return ""
+        if problem and problem != attr(self, "_voice_said", ""):
+            self._voice_said, self._voice_told = problem, time.time()
+            self.say("Voice: %s Settings > Audio > Test voice says more." % problem, AMBER)
+        return problem
 
     def find_voice_packs(self):
         """Once, a few seconds in: does VoiceAttack have a voice pack here?
@@ -9769,6 +10882,9 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                     "key": "deposit:%s" % (deposit.get("id") or deposit.get("commodity")),
                     "name": str(found.get("commodity") or deposit.get("commodity") or ""),
                     "range_m": float(found["range_m"]),
+                    # The compass bearing, for a voice that comes with
+                    # building blocks (1.10042, G4).
+                    "bearing": float(found["bearing"]),
                     "offset": SV.relative_bearing(heading, found["bearing"])}
             marks = self.plan_marks() or {}
             pin = marks.get("next_pin")
@@ -9821,7 +10937,21 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
             if speaker is None:
                 return ""
             speaker.set_rate(settings.get("voice_rate", VO.DEFAULT_RATE))
-            if not speaker.say_text(words):
+            speaker.comms = settings.get("voice_comms", True) is not False
+            self.point_audio(speaker)
+            if target.get("bearing") is not None and str(target["key"]).startswith("deposit:"):
+                # 1.10042 (G4): a voice with recordings of the blocks says the
+                # distance and compass point from them; without every one the
+                # words above are said, as before.
+                speaker.folders = voice_folders()
+                said = speaker.say_direction(
+                    "nearest", target["range_m"], target["bearing"],
+                    VO.clean_theme(settings.get("voice_theme")),
+                    place=VO.place_from(attr(self, "game", None)),
+                    detail=settings.get("voice_detail"), text=words)
+            else:
+                said = speaker.say_text(words)
+            if not said:
                 return ""
         except Exception:
             return ""
@@ -10128,7 +11258,10 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                  "trail_paint": bool(settings.get("overlay_trail_paint", False)),
                  "target": attr(self, "_guide_to", None) or "",
                  "last": self.last_marked_commodity(),
-                 "filter": MF.from_settings(settings)}
+                 "filter": MF.from_settings(settings),
+                 # 1.10042: which layers are drawn, and how big you are.
+                 "layers": MK.layers(settings),
+                 "marker_size": settings.get("srv_marker_size", MK.MARKER_SIZE_DEFAULT)}
         if prices:
             prefs["prices"] = self.market_prices()
         return prefs
@@ -10142,10 +11275,60 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
             return self.say("The overlay is off - %s turns it on."
                             % self.key("overlay", "Overlay"), AMBER)
         step = overlay.cycle_zoom()
+        # 1.10042: the step is in the settings now; kept across a restart.
+        save_settings(self.settings)
         self.flash("SCOPE %dx" % step, "press again for the next step")
         self.redraw()
         return self.say("Scope zoom %dx. The same key steps it: 1x, 2x, 4x." % step,
                         GREEN)
+
+    @staticmethod
+    def _plan_key(plan):
+        """What tells one rig plan from another: where it is and its
+        first pin."""
+        try:
+            first = (plan.get("pins") or [{}])[0]
+            return (str(plan.get("system") or ""), str(plan.get("body") or ""),
+                    len(plan.get("pins") or []),
+                    round(float(first.get("lat") or 0.0), 6),
+                    round(float(first.get("lon") or 0.0), 6))
+        except (AttributeError, TypeError, ValueError, IndexError):
+            return None
+
+    def pin_skips(self, plan):
+        """The numbers of the pins left out with "skip this pin" on this
+        plan (1.10042). Another plan starts with none."""
+        key = self._plan_key(plan) if plan else None
+        held = attr(self, "_pin_skips", None)
+        if key is None or not isinstance(held, dict) or held.get("plan") != key:
+            return []
+        return list(held.get("pins") or [])
+
+    def skip_pin(self):
+        """Skip this pin (1.10042): the rig planner points at the next pin
+        of yours instead - a key, a joystick button, or "skip" in chat. The
+        pin is not removed; skip past the last and it starts round again."""
+        marks = self.plan_marks()
+        plan = (marks or {}).get("plan")
+        if not marks or marks.get("tracing") or not plan:
+            self.say("No rig plan here to skip a pin on - trace a deposit's edge "
+                     "with %s first." % self.key("trace", "the planner key"), AMBER)
+            return False
+        waiting = [pin for pin in marks.get("pins") or []
+                   if not pin.get("done") and pin.get("mine", True)]
+        skipped, n = RP.skip_pin(self.pin_skips(plan), waiting)
+        if n is None:
+            self.say("Every pin of yours has a rig on it - nothing to skip.", AMBER)
+            return False
+        self._pin_skips = {"plan": self._plan_key(plan), "pins": skipped}
+        following = RP.following_pin(waiting, skipped)
+        self.flash("PIN P%d SKIPPED" % n, "next: P%d" % following["n"])
+        self.speak("pin_skipped")
+        self.redraw()
+        self.say("Rig planner: P%d skipped, on to P%d. The pin stays on the plan%s." % (
+            n, following["n"], "; that was the last, so round again" if not skipped else ""),
+            GREEN)
+        return True
 
     def rig_radar(self, state, rigs):
         """`rigs` as watch_rigs gave it, with the rig radar's verdict on
@@ -10528,6 +11711,7 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         crowd.asked_at = time.time() if now is None else now
         asked = community.crowd("regrowth", tag=CR.REGROWTH_TAG)
         community.crowd("rig-spacing", tag=CR.SPACING_TAG)
+        community.crowd("tonnes", tag=CR.TONNES_TAG)
         return bool(asked)
 
     def take_crowd(self, tag, ok, message):
@@ -11235,11 +12419,18 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                 running=running, paused=bool(running and getattr(books, "paused", False)),
                 cr_hr=cr_hr, merits=merits, merits_estimated=estimated,
                 rigs_down=len((attr(self, "rigs_at", None) or {}).get("rigs") or []),
+                # 1.10042: what each rig is on and whether he is driving, so
+                # the card says "Mining ..." the moment the rigs go down.
+                rig_types=[rig.get("commodity") for rig in
+                           ((attr(self, "rigs_at", None) or {}).get("rigs") or [])
+                           if isinstance(rig, dict)],
+                in_rhino=bool(getattr(attr(self, "game"), "in_rhino",
+                                      getattr(attr(self, "game"), "in_srv", False))),
                 near=self.stream_near(),
                 find=SO.last_find(getattr(store, "deposits", None) or [], hide=hide, now=now),
-                colours=self.stream_colours(), hide=hide, now=now, version=APP_VERSION)
+                colours=self.stream_colours(), hide=hide, now=now, version=SHOWN_VERSION)
         except Exception:
-            return SO.stream_state(now=now, version=APP_VERSION)
+            return SO.stream_state(now=now, version=SHOWN_VERSION)
 
     def card_map(self, row, picture=None):
         """The session's map picture, as a Pillow image for its card, or
@@ -11298,7 +12489,8 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                                   merits_estimated=estimated, hide=self.hide_names)
             image = self.card_map(row, picture)
             badge = SC.load_badge(os.path.join(IMAGES_DIR, LG.BADGE_SMALL))
-            card, _texts = SC.render_card(facts, image, colour=colour_for, badge=badge)
+            card, _texts = SC.render_card(facts, image, colour=colour_for, badge=badge,
+                                          version=SHOWN_VERSION)
             folder = MI.pictures_dir(DATA_DIR)
             out["name"] = SC.card_name(row)
             out["path"] = MI.save_picture(card, os.path.join(folder, out["name"]))
@@ -11308,7 +12500,7 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
             served = out["png"]
             if (shown["system"], shown["body"]) != (facts["system"], facts["body"]):
                 served = MI.png_bytes(SC.render_card(shown, image, colour=colour_for,
-                                                     badge=badge)[0])
+                                                     badge=badge, version=SHOWN_VERSION)[0])
             self.stream_server().publish_card(served)
         except OSError as problem:
             out["why"] = "The session card could not be saved: %s" % problem
@@ -11386,16 +12578,19 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                 continue
             for hook in todo:
                 try:
-                    # The map picture only to the webhooks with Session map on.
+                    # The map picture only to the webhooks with Session map on;
+                    # the summary shows the card when there is one (1.10042),
+                    # else the map.
                     pic = picture if hook["map"] else None
+                    shows = card if (card and hook.get("card")) else pic
                     told = dict(summary) if summary is not None else None
-                    if pic and told is not None:
-                        told["image"] = pic[0]
+                    if shows and told is not None:
+                        told["image"] = shows[0]
                     payload = EDO.discord_session_message(
                         row, row.get("cmdr") or "", summary=told)
                     if book is not None:
                         book.sent(SL.post_key(sid, WH.hook_key(hook["url"])), state,
-                                  pic[0] if pic else "")
+                                  shows[0] if shows else "")
                     self.send_discord(
                         EDO.DISCORD_TAG,
                         lambda h=hook, p=payload, s=sid, pic=pic,
@@ -11821,6 +13016,8 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                 # When anyone last reported it (1.10038): the zone line says
                 # how old what it names is.
                 "when": str(item.get("last_seen") or item.get("created") or ""),
+                # 1.2: how long ago it was reported worked out, for Due a check.
+                "worked_out_days": item.get("days_since_worked_out"),
             })
         if not isinstance(attr(self, "shared", None), dict):
             self.shared = {}
@@ -11947,6 +13144,9 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                     found, rename = (deposit, metres), retype[3]
                 break
         self._retype_armed = None
+        if found is None and self.answer_theirs(True):
+            # 1.2: Still there? answered yes for another commander's find.
+            return None
         if found is None:
             return self.say("There is no deposit of yours within %s of here. "
                             "MARK DEPOSIT records a new one."
@@ -11983,8 +13183,10 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                                 "was %s, now %s" % (was, changes["commodity"]))
         changes["notes"] = SV.stamp_note(deposit.get("notes"),
                                          "Updated (%s)" % said)
+        changes.update(RC.checked_changes())
         row = self.deposit_edited(deposit["id"], changes)
         if row is not None:
+            self.answered(row["id"])
             self.speak("deposit_updated")
             if "commodity" in changes:
                 self.say("Renamed the deposit %s from here: %s. Its position, "
@@ -12165,14 +13367,20 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
             lines.append("amount: %s%s" % (amount,
                                            "  - worked out" if worked else ""))
             age = worked_out_age(deposit)
-            regrowth = RG.card_lines(deposit)
+            crowd = self.crowd_figures()
+            regrowth = RG.card_lines(deposit, regrow_days=crowd.regrow_days(
+                deposit.get("commodity")))
             if regrowth:
                 lines.extend(regrowth)
             elif age:
                 lines.append(age)
-            said = self.crowd_figures().card_line(deposit)
+            said = crowd.card_line(deposit)
             if said:
                 lines.append(said)
+            # 1.10042: when it is expected back, from the measured reports.
+            back = crowd.expected_line(deposit)
+            if back and back not in regrowth:
+                lines.append(back)
         if deposit.get("planet_class"):
             lines.append("")
             lines.append(deposit["planet_class"])
@@ -12185,7 +13393,8 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
             lines.append("logged %s" % str(deposit["recorded"])[:10])
         # Counted off the game's own tonne-by-tonne record while EDSMT was
         # running.
-        lines.extend(tonnes_lines(deposit, attr(self.store, "deposits", None)))
+        lines.extend(tonnes_lines(deposit, attr(self.store, "deposits", None),
+                                  self.crowd_figures().tonnes))
         if deposit.get("shared"):
             # Somebody else's. It can be driven to; it cannot be edited or
             # deleted from here, because it is not in your records.
@@ -12304,6 +13513,10 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         says "empty as of the tenth" beats no record at all, both for you
         and for whoever reads it in three months.
         """
+        # 1.2: Still there? asked about another commander's find under you
+        # (none of yours is): MINED OUT answers it, on the community map.
+        if self.answer_theirs(False):
+            return None
         if not self.selected:
             return self.say("Pick a deposit first.", AMBER)
         # The re-upload lives in deposit_edited now, so a correction made
@@ -12316,21 +13529,25 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         # refined since it was marked make this a new depletion (regrowth.py).
         dates, _kind = RG.mark_changes(self.selected)
         changes["depleted_at"], changes["rechecks"] = dates["depleted_at"], dates["rechecks"]
+        changes.update(RC.checked_changes())
         # What it gave this time is what it held: filed as a cycle, and the
         # count starts again for when it has grown back.
         cycle = SV.close_cycle(self.selected)
+        gave = None
         if cycle:
             changes["cycles"], changes["mined"] = cycle
-            own = SV.cycle_tonnes({"cycles": cycle[0]})[-1]
+            own = gave = SV.cycle_tonnes({"cycles": cycle[0]})[-1]
             changes["notes"] = SV.stamp_note(self.selected.get("notes"),
                                              "Mined out after %dt" % own)
-        row = self.deposit_edited(self.selected["id"], changes)
+        row = self.deposit_edited(self.selected["id"], changes, tonnes=gave)
         if row is not None:
+            self.answered(row["id"])
             self.speak("mined_out")
         return row
 
-    def deposit_edited(self, deposit_id, changes):
-        """Write an edit back and put every view in step with it."""
+    def deposit_edited(self, deposit_id, changes, tonnes=None):
+        """Write an edit back and put every view in step with it. `tonnes`
+        is what a deposit gave when it was worked out, for the report."""
         row = self.store.update_deposit(deposit_id, **changes)
         if row is None:
             return self.say("That deposit is no longer there.", AMBER)
@@ -12343,7 +13560,7 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         # mark_mined ever did this, so fixing a wrong commodity locally
         # left it wrong in the community database for good. share() decides
         # whether anything actually leaves the machine.
-        self.share(row)
+        self.share(row, tonnes=tonnes)
         self.say("Corrected %s." % (row.get("commodity") or "the deposit"), GREEN)
         return row
 
@@ -12466,7 +13683,7 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         self.say("Reported signal %s on %s as worked out."
                  % (self.signal(), body), GREEN)
 
-    def share(self, record):
+    def share(self, record, tonnes=None):
         if not (self.community.ready
                 and self.settings.get("community_auto_share", True)):
             return
@@ -12475,32 +13692,7 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         if CT.is_ranged(record):
             return
         try:
-            row = {
-                "system": record["system"], "planet": record["body"],
-                "spot": record["location"], "type": record["commodity"],
-                "rigs": int(float(record["rigs"] or 0)),
-                # No direction and no distance: there is no spot centre to
-                # measure from. The coordinates ARE the position, and the
-                # server treats them as the deposit's identity.
-                "lat": float(record["lat"]) if record["lat"] else None,
-                "lon": float(record["lon"]) if record["lon"] else None,
-                "density": record.get("density") or "",
-                "amount": record.get("amount") or "",
-                "status": record.get("status") or SV.STATUS_REPORTED,
-                "planet_class": record.get("planet_class") or "",
-                "gravity": record.get("gravity") or None,
-                "atmosphere": record.get("atmosphere") or "",
-                "volcanism": record.get("volcanism") or "",
-                "temperature_k": float(record["temperature_k"])
-                                 if record.get("temperature_k") else None,
-                "notes": "",
-                # Where in the galaxy this is. Sent so that everyone else's
-                # copy can answer "what is near me" - which, with 400
-                # billion systems in the game, is the only form of the
-                # question worth asking. Taken from the journal, never
-                # typed, and simply absent if the game has not said yet.
-                **self.galactic_position(),
-            }
+            row = self.share_row(record, tonnes)
             # Every find goes up with the CMDR name on it. With no name yet
             # (EDSMT opened before the game said who is playing) it is held
             # and shared by itself once the name is known (1.10041).
@@ -12511,6 +13703,75 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         except Exception:
             pass
         self.verify_own(record)
+
+    def share_row(self, record, tonnes=None, tonnes_on=""):
+        """One deposit as the community map takes it. `tonnes` is what it
+        gave when it was worked out (and `tonnes_on` the day, for a
+        catch-up of an earlier time)."""
+        row = {
+            "system": record["system"], "planet": record["body"],
+            "spot": record["location"], "type": record["commodity"],
+            "rigs": int(float(record["rigs"] or 0)),
+            # No direction and no distance: there is no spot centre to
+            # measure from. The coordinates ARE the position, and the
+            # server treats them as the deposit's identity.
+            "lat": float(record["lat"]) if record["lat"] else None,
+            "lon": float(record["lon"]) if record["lon"] else None,
+            "density": record.get("density") or "",
+            "amount": record.get("amount") or "",
+            "status": record.get("status") or SV.STATUS_REPORTED,
+            "planet_class": record.get("planet_class") or "",
+            "gravity": record.get("gravity") or None,
+            "atmosphere": record.get("atmosphere") or "",
+            "volcanism": record.get("volcanism") or "",
+            "temperature_k": float(record["temperature_k"])
+                             if record.get("temperature_k") else None,
+            "notes": "",
+            # Where in the galaxy this is. Sent so that everyone else's
+            # copy can answer "what is near me" - which, with 400
+            # billion systems in the game, is the only form of the
+            # question worth asking. Taken from the journal, never
+            # typed, and simply absent if the game has not said yet.
+            **self.galactic_position(),
+        }
+        row.update(TL.report_fields(tonnes, tonnes_on))
+        return row
+
+    def send_tonnes_catchup(self):
+        """Once, on the first start of 1.10042: the tonnes of deposits
+        already worked out go up, each with the day it was worked out. A
+        setting marks it done and it never goes again; with sharing off, or
+        before the game has said who is playing, it waits. How many went."""
+        if self.settings.get("tonnes_catchup_done"):
+            return 0
+        community = attr(self, "community")
+        cmdr = str(getattr(attr(self, "watcher"), "cmdr", "") or "").strip()
+        if community is None or not getattr(community, "ready", False) or not cmdr \
+                or not self.settings.get("community_auto_share", True):
+            return 0
+        rows = []
+        for deposit, tonnes, day in TL.catchup(attr(self.store, "deposits", None)):
+            if CT.is_ranged(deposit):
+                continue
+            try:
+                rows.append(self.share_row(deposit, tonnes, day))
+            except (KeyError, TypeError, ValueError):
+                continue
+        sent = 0
+        for start in range(0, len(rows), IMPORT_SHARE_BATCH):
+            chunk = rows[start:start + IMPORT_SHARE_BATCH]
+            try:
+                if community.upload(cmdr, chunk):
+                    sent += len(chunk)
+            except Exception as exc:
+                self.trouble("Sharing earlier tonnes", exc)
+                return sent
+        self.settings["tonnes_catchup_done"] = True
+        try:
+            save_settings(self.settings)
+        except Exception as exc:
+            self.trouble("Saving settings", exc)
+        return sent
 
     def hold_finds(self, rows):
         """Keep finds that have no CMDR name to go up with yet. How many
@@ -12683,10 +13944,17 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
             if tag in (LB_TAG, LB_OPTIN_TAG):
                 self.take_board(tag, ok, message)
                 continue
+            if tag == EDO.NOW_TAG:
+                # The live status for the Twitch bot: nothing to show either way.
+                continue
+            if tag == EDO.RIBBONS_TAG:
+                # 1.2: the commander's ribbon steps, for "New ribbon earned".
+                self.take_ribbons(ok, message)
+                continue
             if tag in (LB_MERITS_TAG, LB_STANDING_TAG):
                 # Merits and standing for the board: nothing to show either way.
                 continue
-            if tag in (CR.REGROWTH_TAG, CR.SPACING_TAG, CR.REGROWTH_SHARE_TAG):
+            if tag in (CR.REGROWTH_TAG, CR.SPACING_TAG, CR.REGROWTH_SHARE_TAG, CR.TONNES_TAG):
                 self.take_crowd(tag, ok, message)
                 continue
             if tag == SYSTEM_PRICE_TAG:
@@ -12737,7 +14005,7 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                     self.announce_update(message)
                 elif asked:
                     self.say("You are up to date - EDSMT %s is the latest "
-                             "build." % APP_VERSION, GREEN)
+                             "build." % SHOWN_VERSION, GREEN)
                 continue
             if tag == "share" and ok:
                 self.note_shared(message)
@@ -12883,9 +14151,9 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         # which asks for the same name - finds this one still running.
         release_single_instance()
         try:
-            import subprocess
-            flags = 0x00000008 | 0x00000200 if os.name == "nt" else 0
-            subprocess.Popen(command, close_fds=True, creationflags=flags)
+            # Through relaunch: the new copy must unpack for itself, not use
+            # the folder this one is about to remove (1.10042).
+            RL.start(command)
         except Exception as exc:
             claim_single_instance()
             self.say("Could not start the update: %s. It is saved at %s"
@@ -12936,22 +14204,12 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         """Put the new single-file exe where the running one is.
 
         A running program can be renamed but not overwritten, so this one
-        moves aside to EDSMT.exe.old (removed on the next start) and the new
-        one is copied into its name. If the copy fails the old one is put
-        back, so there is never a moment with no EDSMT.exe at all.
+        moves aside to EDSMT.exe.previous (kept, one copy, for Help > Go
+        back to the previous version) and the new one is copied into its
+        name. If the copy fails the old one is put back, so there is never a
+        moment with no EDSMT.exe at all.
         """
-        import shutil
-        exe = os.path.abspath(sys.executable)
-        old = exe + ".old"
-        if os.path.exists(old):
-            os.remove(old)
-        os.replace(exe, old)
-        try:
-            shutil.copy2(new_exe, exe)
-        except Exception:
-            os.replace(old, exe)
-            raise
-        return exe
+        return RL.put_new(new_exe)
 
     # -- chrome ----------------------------------------------------------
 
@@ -12990,8 +14248,15 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         return self.flash(title, detail, RED if colour == RED else
                           AMBER if colour == AMBER else GREEN)
 
-    def open_settings(self):
-        SettingsWindow(self)
+    def open_settings(self, tab=None):
+        """Settings, on a tab when one is asked for (1.10042)."""
+        window = SettingsWindow(self)
+        if tab in SETTINGS_TABS:
+            try:
+                window.tabs.set(tab)
+            except Exception:
+                pass
+        return window
 
     def open_materials(self):
         """One materials picker (1.10040, #306); asking again brings it
@@ -13358,11 +14623,6 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                 self.want_landing(system)
             except Exception as exc:
                 self.trouble("Asking for this system's shared sites", exc)
-            try:
-                if RG.expire_marks(self.store, now):
-                    self.refresh_everything()
-            except Exception as exc:
-                self.trouble("Taking off depleted marks", exc)
         pending = attr(self, "_arrival", None)
         if not isinstance(pending, dict):
             return False
@@ -13394,12 +14654,14 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         told = attr(self, "_look_told", None)
         if not isinstance(told, set):
             told = self._look_told = set()
+        crowd = self.crowd_figures()
         for row, _metres in RG.due_near(self.store, system, body, state.lat,
-                                        state.lon, state.radius_m, now):
+                                        state.lon, state.radius_m, now,
+                                        regrow_days=crowd.regrow_days):
             if row["id"] in told:
                 continue
             told.add(row["id"])
-            info = RG.standing(row, now)
+            info = RG.standing(row, now, crowd.regrow_days(row.get("commodity")))
             self.say("%s here: %s. Click it on the map: CONFIRM DEPLETED if it "
                      "is, REGROWN if it has grown back."
                      % (row.get("commodity") or "A deposit", info["text"]), AMBER)
@@ -13463,7 +14725,8 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
     def _regrowth_buttons(self, deposit):
         """CONFIRM DEPLETED on a deposit that is due a recheck, REGROWN on any
         that is marked depleted."""
-        info = RG.standing(deposit)
+        info = RG.standing(deposit, regrow_days=self.crowd_figures().regrow_days(
+            deposit.get("commodity")))
         for button, show in ((attr(self, "btn_still"), info["due"]),
                              (attr(self, "btn_active"), RG.depleted(deposit))):
             if button is None:
@@ -13481,7 +14744,8 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         chosen = attr(self, "selected")
         if not chosen:
             return self.say("Pick a deposit first.", AMBER)
-        changes, kind = RG.still_depleted_changes(chosen)
+        changes, kind = RG.still_depleted_changes(
+            chosen, regrow_days=self.crowd_figures().regrow_days(chosen.get("commodity")))
         if kind != "recheck":
             return self.say("That one is not due a look yet.", AMBER)
         row = self.store.update_deposit(chosen["id"], **changes)
@@ -13523,6 +14787,135 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
             pass
         self.sites_window = SitesWindow(self)
         return self.sites_window
+
+    # -- 1.10042: the data window's parts ----------------------------------
+
+    def show_sites_key(self):
+        """Its key: My sites up, over the game."""
+        sites = self.open_sites()
+        try:
+            top = sites.winfo_toplevel()
+            top.deiconify()
+            top.lift()
+            top.attributes("-topmost", True)
+            top.after(400, lambda: top.attributes("-topmost", False))
+        except Exception:
+            pass
+        try:
+            self.flash("MY SITES")
+        except Exception:
+            pass
+        return sites
+
+    def own_marks(self):
+        """Your own up and down marks on locations, kept on this PC."""
+        book = attr(self, "_own_marks", None)
+        if book is None:
+            book = self._own_marks = OM.OwnMarks(os.path.join(DATA_DIR, OM.FILE_NAME))
+            book.load()
+        return book
+
+    def ground_of(self, system, body):
+        """(planet class, volcanism) of a body from the book of bodies, or None."""
+        book = attr(self, "bodybook", None)
+        if book is None:
+            return None
+        found = (book.bodies(system) or {}).get(body)
+        facts = (found or {}).get("facts") or {}
+        if not facts.get("planet_class"):
+            return None
+        return facts.get("planet_class") or "", facts.get("volcanism") or ""
+
+    def where_you_are(self):
+        """Where you are, as sitetree measures from: system, body, and the
+        position, size and heading when the game has given them."""
+        system, body = self.here()
+        you = {"system": system, "body": body}
+        state = attr(self, "game", None)
+        if state is not None and getattr(state, "has_position", False):
+            you.update(lat=state.lat, lon=state.lon, radius_m=state.radius_m,
+                       heading=getattr(state, "heading", None))
+        here = self.star_position() if callable(attr(self, "star_position", None)) else None
+
+        def ly(other):
+            there = self.system_position(other)
+            if here is None or there is None:
+                return None
+            return math.dist(here, there)
+        you["ly"] = ly
+        return you
+
+    def far_target(self):
+        return FG.from_settings((attr(self, "settings", None) or {}).get(FG.SETTING))
+
+    def restore_far_guide(self):
+        """After a restart: the overlay points at the kept target again."""
+        target = self.far_target()
+        if target is not None:
+            self._guide_to = str(target["id"])
+
+    def guide_far(self, deposit):
+        """Guide me there, to a deposit on any body: kept until you get
+        there. Answers the words to show - why not, when it cannot."""
+        why = FG.why_not(deposit)
+        if why:
+            return why
+        target = FG.target_of(deposit)
+        self.settings[FG.SETTING] = FG.to_settings(target)
+        save_settings(self.settings)
+        system, body = self.here()
+        if FG.arrived_on_body(target, system, body):
+            self.pick_deposit(deposit)
+            self.show_map()
+        else:
+            # 1.2: "Guidance set. Travel to the body first."
+            self.speak("guide_far")
+        self.guide_to(deposit)
+        return self.far_status()[1]
+
+    def far_status(self):
+        system, body = self.here()
+        return FG.status(self.far_target(), system, body, attr(self, "_guide_to", None))
+
+    def stop_far_guide(self):
+        """Stop guiding: the target let go, the overlay back to nearest."""
+        self.settings.pop(FG.SETTING, None)
+        save_settings(self.settings)
+        self._guide_to = None
+
+    def far_arrived(self, deposit_id):
+        """You got there: the kept target is let go."""
+        target = self.far_target()
+        if target is not None and str(target["id"]) == str(deposit_id):
+            self.settings.pop(FG.SETTING, None)
+            save_settings(self.settings)
+
+    def site_picture(self, system, body, location=None, area=None):
+        """A map picture of any site, or of a surveyed area, saved in the
+        pictures folder and opened. Answers the path, or "" with the reason said."""
+        ok, why = MI.pillow_status()
+        if not ok:
+            self.say(why, AMBER)
+            return ""
+        inputs = STR.picture_inputs(self.store, system, body, location, area)
+        if inputs is None:
+            self.say("Nothing there has a position to draw, or the body's size is not known.", AMBER)
+            return ""
+        try:
+            image, _scene = MI.render_map(
+                inputs["rows"], system=system, body=body, signal=inputs["signal"],
+                anchor=inputs["anchor"], survey=inputs["survey"], when=time.time(),
+                version=SHOWN_VERSION, colour=colour_for, golden_m=self.golden_radius())
+            folder = MI.pictures_dir(DATA_DIR)
+            path = MI.save_picture(image, os.path.join(folder, MI.picture_name(
+                system, body, inputs["signal"] + ("-area" if area is not None else ""))))
+            MI.tidy_pictures(folder)
+        except Exception as exc:
+            self.trouble("Drawing the map picture", exc)
+            return ""
+        open_path(path)
+        self.say("Map picture saved: %s" % os.path.basename(path), GREEN)
+        return path
 
     def open_land(self):
         """One Where to land window. Asking again brings it to the front."""
@@ -13682,9 +15075,10 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                                        else __file__)]
         release_single_instance()
         try:
-            import subprocess
-            flags = 0x00000008 | 0x00000200 if os.name == "nt" else 0
-            subprocess.Popen(relaunch, close_fds=True, creationflags=flags)
+            # Through relaunch, for the same reason as an update: a one-file
+            # copy started any other way used this copy's unpack folder and
+            # lost it when this one closed (1.10042).
+            RL.start(relaunch)
         except Exception as exc:
             claim_single_instance()
             self.say("Could not restart: %s. Close EDSMT and open it again "
@@ -13869,15 +15263,18 @@ SETTING_TIPS = {
                    "!rr 135 1.2km alexandrite, !rr rig down 3, !rr undo. 2 to "
                    "12 characters, no spaces.",
     "long_press_rig": "While you are in the Rhino with the game in front, your "
-                      "fire button held for two seconds counts as a rig "
-                      "placed, as the rig-down key does. A click never does. "
-                      "Nothing about a press is saved.",
+                      "fire button held for as long as you set under Hold for "
+                      "counts as a rig placed, as the rig-down key does. A "
+                      "click never does. Nothing about a press is saved.",
+    "long_press_seconds": "How long you hold fire for the game to place a rig. "
+                          "Set it to your own hold: too short and a rig is "
+                          "counted that the game did not place.",
     "long_press_button": "Primary or Secondary fire, as you bound it for the "
                          "SRV in the game's Controls - mouse, key or joystick.",
     "app_theme": "The colours of this window. A new theme shows after a restart.",
     "srv_colour": "The colour you are drawn in on the map and the scope, in the "
-                  "Rhino or the ship. Theme's own is a cyan picked for each theme; "
-                  "pick another, or type any hex such as #ff00aa.",
+                  "Rhino or the ship. White to begin with. Theme's own is a cyan "
+                  "picked for each theme; pick another, or type any hex such as #ff00aa.",
     "overlay_follows_app": "The boxes over the game wear the app theme and change "
                            "with it as soon as you Save. Off: pick their own below.",
     "overlay_theme": "The colours of the boxes over the game.",
@@ -13898,10 +15295,17 @@ SETTING_TIPS = {
     "overlay_only_over_game": "Hide the boxes when the game is not the window in front.",
     "overlay_click_through": "Clicks go through the boxes to the game while they are locked.",
     "overlay_flash": "A few words over the game when a key does something - RIG 2 DOWN.",
+    "overlay_key_hints": "The keys you have bound, along the foot of the scope: site, border, deposit and rig, and where there is room the zoom key and the rig planner's. Off leaves the foot to the next deposit and what the patch is worth.",
+    "hotkey_pin_skip": "In the rig planner: leave out the pin you are being pointed at and go to the next. The pin stays on the plan. Also a joystick button, and skip in chat.",
+    "hotkey_sites": "Brings My sites up over the game: your systems, bodies, locations and deposits in one window. Also a joystick button.",
     "overlay_show_strip": "The compass tape across the top.",
     "overlay_show_radar": "The scope: deposits, rigs and swept ground around you.",
     "overlay_show_targets": "The nearest deposits, with range and turn.",
     "overlay_show_status": "Where you are, the holds, and warnings.",
+    "overlay_status_fuel": "SRV fuel on the STATUS box, in the SRV, with LOW when the game says so. A row of its own in a taller box; one short line in a small one.",
+    "overlay_status_tph": "Tonnes an hour on the STATUS box, the figure Earnings shows. A row of its own in a taller box; one short line in a small one.",
+    "overlay_status_merits": "Merits this session on the STATUS box, only while a Power is pledged. A row of its own in a taller box; one short line in a small one.",
+    "overlay_status_fill": "In the Rhino: when the Rhino will be full (72 t), when the ship will be full by its cargo capacity, and how long your Rhino loads take, timed from the first tonne to 72 t. Rows of their own in a taller box; one short line in a small one.",
     "overlay_show_deposit": "The card for the deposit you are at.",
     "overlay_show_guide": "The step-by-step guide. It turns itself off after your first full run.",
     "overlay_opacity": "How see-through the boxes are, 0.2 to 1.",
@@ -13925,6 +15329,7 @@ SETTING_TIPS = {
     "streamer_mode": "System and body names out of what a stream sees, and your own Discord posts held, until you have been in the system for the delay. A STREAMER badge shows while it is on.",
     "streamer_delay_min": "How long you are in a system before its names show, and how long your own Discord posts wait.",
     "streamer_big_text": "The overlay's text two sizes bigger while streamer mode is on, for viewers on a small screen.",
+    "twitch_status": "Off unless you switch it on. While it is on, about every half minute EDSMT tells the community map your system and body (never a position, and not while streamer mode is hiding them), your ship, your ranks and how the session is going, so the Radio Raxxla bot can answer !system, !ship, !rank, !session and !edsmt in your Twitch chat. Switched off, it is taken down at once.",
     "stream_enabled": "A page of your Rhino session for an OBS Browser Source, served on this PC only "
                       "- nothing on the network can reach it. Streamer mode hides names on it too.",
     "stream_port": "The port the OBS page is served on, 1024 to 65535. Change it only if another "
@@ -13939,7 +15344,15 @@ SETTING_TIPS = {
                   "update ready - in the voice picked below. Windows only.",
     "voice_theme": "Which voice of the Basic voice line pack: Celestia, Ship computer, "
                    "Flight controller or Radio Raxxla on-air. Celestia's comms sound "
-                   "different in the ship, in the Rhino and on foot, on their own.",
+                   "different in the ship, in the Rhino and on foot, on their own. "
+                   "Windows voice is Windows' own speech with no recordings: it works on "
+                   "any PC, and it sounds flat and robotic beside the recorded voices.",
+    "audio_device": "Where the voice, the recordings and the rig warning sound play: the "
+                    "system's default device, or another output such as a headset. The "
+                    "proximity sonar's tones always use the default device. Windows only.",
+    "voice_comms": "Celestia's and the Flight controller's lines are given the comm sound of where you are - a small, "
+                   "medium or large ship (a tight cockpit to a bridge), the Rhino or on foot. "
+                   "Off, the recordings play clean.",
     "voice_rate": "How quickly Windows' speech reads the lines. A recording plays at "
                   "its own speed.",
     "discord_presence": "Rich Presence: your Discord profile says Playing Surface Mining with EDSMT and "
@@ -13979,9 +15392,11 @@ SETTING_TIPS = {
     "map_golden": "Circle the three best patches of intact deposits, with the rigs and Cr/h of each.",
     "golden_radius_m": "How far apart a top patch's deposits may be, 500 to 2,500 m. 1,250 is the usual.",
     "trash_days": "How many days a site you remove from My sites waits in the bin before it is deleted for good. 30 is the usual.",
-    "wing_link": "Beta: see your wing's Rhinos and rigs on your scope.",
+    "wing_link": "Beta: see your wing's Rhinos and rigs on your scope. A rig a wingmate has collected stays in the game until you leave the planet; here it is marked collected.",
     "wing_code": "Six letters and digits. Everyone in the wing types the same one.",
-    "wing_auto": "In a wing in the game, linked with each wingmate who runs EDSMT and has you in their wing too. No code needed. Leaving the wing in the game ends it.",
+    "wing_auto": "In a wing in the game, linked with each wingmate who runs EDSMT and has you in their wing too. No code needed. Leaving the wing in the game ends it. A wingmate's collected rigs stay in the game until you leave the planet; EDSMT marks them collected.",
+    "srv_marker_size": "How big you are drawn on the map and the scope. Standard is the old size; Larger is the usual.",
+    **MK.TIPS,
     "wing_split_pins": "A rig plan's pins divided between the wingmates on that deposit, in turn by name. Each of you is guided to your own.",
     "freshness_half_life_days": "How fast an old report counts for less when ranking finds.",
     "high_g_warn": "Warn above this gravity, in g. 0 is off.",
@@ -14120,7 +15535,11 @@ TOUR_STEPS = (
      "community map. UPDATE beside it writes a dropping Amount."),
     ("plan", "Your map",
      "Your deposits, rigs, the survey border and the ground you have swept. "
-     "Click one to select it; double-click to edit it."),
+     "Click one to select it; double-click to edit it. The ? in its corner "
+     "is the key to every mark; right-click for the switches."),
+    ("status_strip", "The status strip",
+     "Who you are, what you are in, where you are, and whether the overlay "
+     "is up - at a glance."),
     ("btn_overlay", "The overlay",
      "Compass, scope, targets, status and the deposit card over the game. "
      "Alt+0 from the game; Unlock beside it to arrange the boxes."),
@@ -14128,13 +15547,29 @@ TOUR_STEPS = (
      "Everyone's finds; everything you have logged; the best body in this "
      "system; what your Rhino sessions earned - and Powerplay and the "
      "leaderboard. F2 to F8 open them; F2 is the map."),
+    ("_keys_bar", "The shortcut bar",
+     "The F-keys for the tabs and your rig keys as you have them bound, "
+     "with the spacing and the theme on the right."),
     ("tour_settings", "Settings",
-     "Keys, overlay, rigs, Discord, Inara and backups. Your settings are "
-     "kept in dated copies - Settings puts any of them back."),
+     "Nine tabs: Basics, Theme, Overlay, Audio, Keys, Rigs, Sharing, Your "
+     "data and About. Your settings are kept in dated copies - Settings puts any "
+     "of them back."),
+    ("btn_help", "Help",
+     "The welcome, this tour, the map key, the user guide, the changelog "
+     "and where to report a bug."),
     (None, "That is it",
-     "Fly safe, Commander. The tour is in Settings whenever you want it "
-     "again."),
+     "Fly safe, Commander. The tour is in Settings and under Help whenever "
+     "you want it again."),
 )
+# What else a step's card keeps clear of (1.10042): the buttons its words
+# name. At the keys step it used to sit on BORDER, RIGS DOWN and RIGS UP.
+TOUR_KEEP_CLEAR = {
+    ("pad", "signal"): (("pad", "border"), ("pad", "rigs"), ("pad", "allup")),
+}
+# How thick the ring round a step's control is drawn, in pixels.
+TOUR_RING_PX = 3
+# What a window's frame and title bar add to the tour's card, at most.
+TOUR_FRAME = (16, 40)
 
 
 def tour_target(app, spec):
@@ -14161,6 +15596,8 @@ class TourWindow(ctk.CTkToplevel):
         self.app = app
         self.at = 0
         self._lit = None
+        # The ring round the step's control: four bars laid over the window.
+        self.ring = []
         self.title("EDSMT - Tour")
         self.configure(fg_color=PANEL)
         self.resizable(False, False)
@@ -14206,56 +15643,66 @@ class TourWindow(ctk.CTkToplevel):
         last = self.at == len(TOUR_STEPS) - 1
         self.next_button.configure(text="Done" if last else "Next")
         self.back_button.configure(state="disabled" if self.at == 0 else "normal")
-        self.light(tour_target(self.app, target))
-        self.place_near(tour_target(self.app, target))
+        widget = tour_target(self.app, target)
+        self.light(widget)
+        self.place_near(widget, [tour_target(self.app, other)
+                                 for other in TOUR_KEEP_CLEAR.get(target, ())])
+
+    @staticmethod
+    def _box(widget):
+        """A widget's (x, y, width, height) on the screen."""
+        return (widget.winfo_rootx(), widget.winfo_rooty(),
+                widget.winfo_width(), widget.winfo_height())
 
     def light(self, widget):
-        """Ring the step's control in the instrument colour; put the last
-        one back as it was."""
+        """Ring the step's control in the instrument colour.
+
+        Four thin bars laid over the app window round the control (1.10042),
+        so the ring takes no room in the layout. It used to be the control's
+        own border or highlight, and a 3-pixel highlight on the tab strip
+        pushed everything under it down by six while the step showed."""
         self.unlight()
         if widget is None:
             return
-        # A button or a box takes a ring; a plain Tk canvas (the map) takes
-        # a highlight; a label takes the colour.
-        for change in ({"border_width": 3, "border_color": ORANGE},
-                       {"highlightthickness": 3, "highlightbackground": ORANGE},
-                       {"text_color": ORANGE}):
-            try:
-                before = {key: widget.cget(key) for key in change}
-                widget.configure(**change)
-                self._lit = (widget, before)
-                return
-            except Exception:
-                continue
-        self._lit = None
+        try:
+            self.app.update_idletasks()
+            x, y, w, h = self._box(widget)
+            x -= self.app.winfo_rootx()
+            y -= self.app.winfo_rooty()
+            t = TOUR_RING_PX
+            for bx, by, bw, bh in ((x - t, y - t, w + 2 * t, t), (x - t, y + h, w + 2 * t, t),
+                                   (x - t, y, t, h), (x + w, y, t, h)):
+                bar = tk.Frame(self.app, bg=ORANGE, bd=0, highlightthickness=0)
+                bar.place(x=max(0, bx), y=max(0, by), width=max(1, bw), height=max(1, bh))
+                bar.lift()
+                self.ring.append(bar)
+            self._lit = (widget, {})
+        except Exception:
+            self.unlight()
 
     def unlight(self):
-        if self._lit is not None:
-            widget, before = self._lit
+        for bar in self.ring:
             try:
-                widget.configure(**before)
+                bar.destroy()
             except Exception:
                 pass
-            self._lit = None
+        del self.ring[:]
+        self._lit = None
 
-    def place_near(self, widget):
-        """Beside the control when there is room, under it when not, and
-        always on the screen."""
+    def place_near(self, widget, keep_clear=()):
+        """Beside the control and inside the app window (welcome.tour_place):
+        never on the control or the buttons the step names where there is
+        room beside them, and always on the screen."""
         try:
             self.update_idletasks()
-            w, h = self.winfo_reqwidth(), self.winfo_reqheight()
-            sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
-            if widget is None:
-                x = self.app.winfo_rootx() + (self.app.winfo_width() - w) // 2
-                y = self.app.winfo_rooty() + (self.app.winfo_height() - h) // 3
-            else:
-                x = widget.winfo_rootx() + widget.winfo_width() + 16
-                y = widget.winfo_rooty()
-                if x + w > sw:
-                    x = widget.winfo_rootx()
-                    y = widget.winfo_rooty() + widget.winfo_height() + 12
-            x = max(0, min(int(x), sw - w - 8))
-            y = max(0, min(int(y), sh - h - 48))
+            # With room for the card's own frame and title bar, which the
+            # window manager draws round it.
+            card = (self.winfo_reqwidth() + TOUR_FRAME[0],
+                    self.winfo_reqheight() + TOUR_FRAME[1])
+            screen = (self.winfo_screenwidth(), self.winfo_screenheight())
+            x, y = WL.tour_place(card, self._box(widget) if widget is not None else None,
+                                 self._box(self.app), screen,
+                                 [self._box(other) for other in keep_clear if other is not None])
             self.geometry("+%d+%d" % (x, y))
         except Exception:
             pass
@@ -14282,13 +15729,13 @@ class TourWindow(ctk.CTkToplevel):
                 pass
 
 
-# Said under Settings > Basics > Voice anywhere but Windows (1.10040).
+# Said under Settings > Audio anywhere but Windows (1.10040).
 VOICE_ELSEWHERE = ("Voice Mode, the spoken directions and the proximity sonar "
                    "use Windows' own speech and tones, so on this system they "
                    "stay quiet. The switches are kept for when EDSMT runs on "
                    "Windows.")
 # Settings' tabs, in the order they are read (#142).
-SETTINGS_TABS = ("Basics", "Theme", "Overlay", "Keys", "Rigs", "Sharing", "Your data", "About")
+SETTINGS_TABS = ("Basics", "Theme", "Overlay", "Audio", "Keys", "Rigs", "Sharing", "Your data", "About")
 # The colours a theme picker's swatch row shows, in order (1.10039).
 SWATCH_KEYS = ("ORANGE", "AMBER", "TEXT", "MUTED", "GREEN", "RED", "CYAN")
 # 1.10040 (#304): the colours offered for you on the map and the scope. The
@@ -14362,8 +15809,9 @@ class SettingsWindow(ctk.CTkToplevel):
                      "Ship minimap: the scope up by itself, low over a body with finds")
         self._switch(body, "overlay_show_guide",
                      "Show the step-by-step guide over the game")
-        self._switch(body, "rig_sound_profane",
-                     "Use the profane rig warning (strong language)")
+        ctk.CTkLabel(body, text="Voice, sounds and the rig warning sound are on the Audio tab.",
+                     font=F_SMALL, text_color=DIM, justify="left", anchor="w",
+                     wraplength=560).pack(fill="x", padx=10, pady=(0, 6))
         self._entry(body, "high_g_warn",
                     "Big warning on bodies from this gravity (g)", "2.0")
         self._entry(body, "jump_range_ly",
@@ -14386,9 +15834,9 @@ class SettingsWindow(ctk.CTkToplevel):
                           command=lambda: self.app.start_tour(force=True)),
             "The first-run tour of the main window.").pack(side="left")
 
-        # 1.10040 (#145, #146, #153, #292): the voice, and the sonar.
-        body = self.pages["Basics"]
-        self._section(body, "Voice",
+        # 1.10042 (G1, #361): every voice and sound setting, on one tab.
+        body = self.pages["Audio"]
+        self._section(body, "Voice and sounds",
                       "EDSMT says what it just did - signal logged, rig two "
                       "down - in a voice from the %s. Spoken directions say "
                       "how far and which way to go, for a headset, where the "
@@ -14396,7 +15844,8 @@ class SettingsWindow(ctk.CTkToplevel):
                       "that quickens as the target deposit nears. A recording "
                       "- voice\\ship_computer\\signal_logged.wav, beside EDSMT "
                       "or in the data folder - is played in place of the "
-                      "spoken line." % VO.PACK_NAME)
+                      "spoken line; _2, _3 and so on beside it are more takes "
+                      "of the same line." % VO.PACK_NAME)
         if os.name != "nt":
             ctk.CTkLabel(body, text=VOICE_ELSEWHERE, font=F_SMALL, text_color=AMBER,
                          justify="left", wraplength=560, anchor="w").pack(
@@ -14408,6 +15857,8 @@ class SettingsWindow(ctk.CTkToplevel):
         self._choice(body, "voice_detail", "Answer length (Celestia)",
                      [(name, key) for key, name in VO.DETAILS])
         self._switch(body, "voice_pack_hints", "Voice-pack reminders")
+        self._switch(body, "voice_comms", "Comm effects (ship by size, Rhino, on foot)")
+        self._audio_device_row(body)
         voice_row = ctk.CTkFrame(body, fg_color="transparent")
         voice_row.pack(fill="x", padx=10, pady=(2, 4))
         self.voice_test = tip(ctk.CTkButton(
@@ -14416,10 +15867,24 @@ class SettingsWindow(ctk.CTkToplevel):
             "Says the test line in the voice and at the rate picked above, "
             "saved or not.")
         self.voice_test.pack(side="left")
+        tip(ctk.CTkButton(
+            voice_row, text="What did it say?", width=150, height=30, font=F_STRONG,
+            **BTN_SECONDARY, command=self.open_voice_history_window),
+            "The last 50 lines spoken, with the time each was said.").pack(
+                side="left", padx=8)
+        self.last_said = ctk.CTkLabel(body, text="", font=F_SMALL, text_color=DIM,
+                                      justify="left", anchor="w", wraplength=560)
+        self.last_said.pack(fill="x", padx=10, pady=(0, 6))
+        self.recordings_note = ctk.CTkLabel(body, text="", font=F_SMALL, text_color=DIM,
+                                            justify="left", anchor="w", wraplength=560)
+        self.recordings_note.pack(fill="x", padx=10, pady=(0, 6))
         self._switch(body, "voice_directions", "Spoken directions")
         self._entry(body, "voice_directions_s", "Say the directions every (seconds)",
                     str(VO.DIRECTIONS_EVERY_S))
         self._switch(body, "sonar", "Proximity sonar")
+        self._switch(body, "rig_warn_sound", "Sound the rig warning as well as showing it")
+        self._switch(body, "rig_sound_profane",
+                     "Use the profane rig warning (strong language)")
 
         # 1.10039 (#287): a tab of its own for the colours, second from the
         # left so it is seen. Both pickers, a swatch row under each, the
@@ -14600,6 +16065,7 @@ class SettingsWindow(ctk.CTkToplevel):
         self._choice(body, "streamer_delay_min", "Delay",
                      [("%d minutes" % m, str(m)) for m in ST.DELAYS_MIN])
         self._switch(body, "streamer_big_text", "Bigger text on the overlay")
+        self._switch(body, "twitch_status", "Show my live status to the Radio Raxxla Twitch bot")
 
         body = self.pages["Sharing"]
         self._section(body, "Radio Raxxla staff",
@@ -14632,7 +16098,9 @@ class SettingsWindow(ctk.CTkToplevel):
                          altgr_word(), bound_key(settings_now, "allup",
                                                  "RIGS UP")))
         self._entry(body, "rig_warn_m", "Warn me this far from a rig (m)", "3500")
-        self._switch(body, "rig_warn_sound", "Sound the warning as well as showing it")
+        ctk.CTkLabel(body, text="The warning's sound, and which one, are on the Audio tab.",
+                     font=F_SMALL, text_color=DIM, justify="left", anchor="w",
+                     wraplength=560).pack(fill="x", padx=10, pady=(0, 6))
         self._entry(body, "rig_offset_m",
                     "A rig lands this far behind the cockpit (m)", "7")
         self._switch(body, "rigs_clear_on_dock",
@@ -14692,13 +16160,19 @@ class SettingsWindow(ctk.CTkToplevel):
         body = self.pages["Rigs"]
         self._section(body, "Long press for a rig",
                       "In the Rhino with the game in front, your fire button "
-                      "held for two seconds counts as a rig placed - what the "
-                      "rig-down key does. A click never does, and a press of "
-                      "half a second to two is neither. The button is read "
+                      "held for the time you set below counts as a rig placed "
+                      "- what the rig-down key does. A click never does, and a "
+                      "press between the two is neither. The button is read "
                       "from your own binds in the game. Windows only. Nothing "
                       "about a press is written down.")
         self._linux_note(body, "long_press")
         self._switch(body, "long_press_rig", "Count a long press as a rig placed")
+        self._choice(body, "long_press_seconds", "Hold for",
+                     [("1 second", "1"), ("1.5 seconds", "1.5"), ("2 seconds", "2"),
+                      ("2.5 seconds", "2.5"), ("3 seconds", "3"), ("3.5 seconds", "3.5"),
+                      ("4 seconds", "4"), ("4.5 seconds", "4.5"), ("5 seconds", "5")],
+                     hint="How long you hold fire for the game to place a rig. "
+                          "If rigs are counted that you did not place, make it longer.")
         self._choice(body, "long_press_button", "Rig button",
                      [("Primary fire", "primary"), ("Secondary fire", "secondary")])
         self.binds_line = ctk.CTkLabel(body, text="", font=F_SMALL, text_color=DIM,
@@ -14752,6 +16226,8 @@ class SettingsWindow(ctk.CTkToplevel):
         self._binding(body, "hotkey_lock", "Lock / unlock the overlay", "")
         self._binding(body, "hotkey_overlay", "Overlay on / off", OVERLAY_KEY)
         self._binding(body, "hotkey_zoom", "Scope zoom: 1x, 2x, 4x", SCOPE_ZOOM_KEY)
+        self._binding(body, "hotkey_pin_skip", "Rig planner: skip this pin", "")
+        self._binding(body, "hotkey_sites", "My sites: bring the data window up", "")
         for name, label, fallback in (
                 ("hotkey_wp_next", "Survey waypoint: next", GD.WAYPOINT_KEYS[0][1]),
                 ("hotkey_wp_back", "Survey waypoint: back", GD.WAYPOINT_KEYS[1][1]),
@@ -14797,7 +16273,9 @@ class SettingsWindow(ctk.CTkToplevel):
                       "the prefix run a command: alexandrite h/m 4 marks it "
                       "here (amount, density, rigs); 135 1.2km alexandrite "
                       "marks it that far away on that bearing; rig down 3, "
-                      "rig up 3, rigs up, centre and undo do what they say. "
+                      "rig up 3, rigs up, centre and undo do what they say; "
+                      "signal, border, zoom, plan and skip do what those "
+                      "keys do. "
                       "Only your own messages are read. Local chat is public: "
                       "everyone near you can read a command as you type it.")
         self._switch(body, "chat_tags", "Run commands I type in the game's chat")
@@ -14814,6 +16292,9 @@ class SettingsWindow(ctk.CTkToplevel):
         tip(ctk.CTkButton(pictures_row, text="Open the pictures folder", width=200,
                       height=30, font=F_STRONG, **BTN_SECONDARY,
                       command=self.open_pictures_folder), "Opens the folder the map pictures are saved in.").pack(side="left")
+        count, size = FS.count_and_size(MI.pictures_dir(DATA_DIR), (".png", ".jpg", ".jpeg", ".gif", ".ppm"))
+        ctk.CTkLabel(body, text=FS.pictures_line(count, size), font=F_BODY,
+                     text_color=TEXT, anchor="w").pack(fill="x", padx=10, pady=(0, 4))
         body = self.pages["Your data"]
         self._section(body, "Your finds",
                       "One dated zip with everything in it. Worth doing "
@@ -14832,6 +16313,18 @@ class SettingsWindow(ctk.CTkToplevel):
                       height=30, font=F_STRONG, **BTN_SECONDARY,
                       command=self.open_data_folder), "Opens the folder your finds and settings are kept in.").pack(side="left", padx=8)
 
+        # 1.10042: where the backup made at every start goes.
+        where = STB.Place().folder()
+        ctk.CTkLabel(body, text="A backup is made each time EDSMT starts, the newest %d kept, "
+                                "with no keys or tokens in it: %s" % (STB.KEEP, where),
+                     font=F_BODY, text_color=TEXT, anchor="w", justify="left",
+                     wraplength=560).pack(fill="x", padx=10, pady=(0, 2))
+        auto_row = ctk.CTkFrame(body, fg_color="transparent")
+        auto_row.pack(fill="x", padx=10, pady=(0, 4))
+        tip(ctk.CTkButton(auto_row, text="Open backup folder", width=170,
+                      height=30, font=F_STRONG, **BTN_SECONDARY,
+                      command=self.open_start_backup_folder), "Opens the folder the backups made at each start are kept in.").pack(side="left")
+
         # A second row rather than a fourth button: Settings is 640 wide and
         # the three above already fill it. Same section, because bringing
         # somebody else's finds in belongs with backing your own up - both
@@ -14846,6 +16339,15 @@ class SettingsWindow(ctk.CTkToplevel):
                       command=self.open_import_window), "Brings in a bookmark database, share lines, a survey CSV or a map file, with a preview and a backup first.").pack(side="left", padx=8)
         self._entry(body, "trash_days",
                     "Keep removed sites in the bin for (days)", "30")
+        # Settings to and from a file (1.10042).
+        file_row = ctk.CTkFrame(body, fg_color="transparent")
+        file_row.pack(fill="x", padx=10, pady=(0, 4))
+        tip(ctk.CTkButton(file_row, text="Save settings to a file", width=190,
+                      height=30, font=F_STRONG, **BTN_SECONDARY,
+                      command=self.save_settings_now), "Writes your settings to a file you pick - for another PC or to keep. No keys or tokens go in it.").pack(side="left", padx=(0, 8))
+        tip(ctk.CTkButton(file_row, text="Load settings from a file", width=200,
+                      height=30, font=F_STRONG, **BTN_SECONDARY,
+                      command=self.load_settings_now), "Reads a settings file saved here. Settings EDSMT does not know are ignored, and your keys are left as they are.").pack(side="left", padx=8)
         # Dated copies of the settings (1.10034): overlay placement, layout,
         # theme, keys - the lot - one pick away from coming back.
         ctk.CTkLabel(body, text="Earlier settings - overlay placement, "
@@ -14900,7 +16402,7 @@ class SettingsWindow(ctk.CTkToplevel):
                      "Download new versions by myself (installing waits for you)")
         version_row = ctk.CTkFrame(body, fg_color="transparent")
         version_row.pack(fill="x", padx=10, pady=(0, 4))
-        ctk.CTkLabel(version_row, text="Version %s" % APP_VERSION,
+        ctk.CTkLabel(version_row, text="Version %s" % SHOWN_VERSION,
                      font=F_READOUT, text_color=TEXT,
                      anchor="w").pack(side="left")
         tip(ctk.CTkButton(version_row, text="Check for updates", width=170,
@@ -14942,6 +16444,11 @@ class SettingsWindow(ctk.CTkToplevel):
                      "Box: STATUS - body, count, and what is next")
         self._switch(body, "overlay_show_deposit",
                      "Box: MINERAL DEPOSIT - one card, with a signal radar")
+        self._switch(body, "overlay_status_fuel", "STATUS line: SRV fuel")
+        self._switch(body, "overlay_status_tph", "STATUS line: tonnes an hour")
+        self._switch(body, "overlay_status_merits",
+                     "STATUS line: merits this session (when pledged)")
+        self._switch(body, "overlay_status_fill", "STATUS line: Rhino and ship full in")
         sizes = [("%d%%" % size, str(size)) for size in OV.TEXT_SIZES]
         for key, name in ((OV.STRIP, "COMPASS"), (OV.RADAR, "SCOPE"),
                           (OV.TARGETS, "TARGETS"), (OV.STATUS, "STATUS"),
@@ -14978,6 +16485,8 @@ class SettingsWindow(ctk.CTkToplevel):
         self._linux_note(body, "overlay")
         self._switch(body, "overlay_only_over_game",
                      "Only show the boxes while the game is in front")
+        self._switch(body, "overlay_key_hints",
+                     "Write the keys along the foot of the scope")
         self._switch(body, "overlay_flash",
                      "Say over the game what each key just did (RIG 2 DOWN...)")
         self._entry(body, "overlay_opacity", "Opacity 0.2 - 1.0", "0.88")
@@ -15024,6 +16533,15 @@ class SettingsWindow(ctk.CTkToplevel):
                     "250")
         self._switch(body, "rhino_pointer",
                      "Point to the parked Rhino, and to the ship from the Rhino")
+        # 1.10042: a switch for each layer, and how big you are. The same
+        # switches are on the map's right-click menu and its key.
+        for layer_key, _name, layer_label, _default in MK.LAYERS:
+            self._switch(body, layer_key, "Show: %s" % layer_label[0].lower() + layer_label[1:])
+        self._choice(body, "srv_marker_size", "Size of your marker",
+                     [(label, value) for label, value, _scale in MK.MARKER_SIZES],
+                     "You, on the map and the scope. Its colour is in Settings > "
+                     "Theme. The map's key (Help, or the ? on the map) says what "
+                     "every mark is.")
         self._switch(body, "orbit_guide",
                      "In the ship: distance and bearing to the deposit or signal")
         filter_row = ctk.CTkFrame(body, fg_color="transparent")
@@ -15790,6 +17308,8 @@ class SettingsWindow(ctk.CTkToplevel):
         self.hide_secrets()
         for key, var in self.toggles.items():
             var.set(bool(data.get(key, DEFAULT_SETTINGS.get(key, False))))
+        self.show_last_said()
+        self.show_recordings()
         if "voice_pack_hints" in self.toggles:
             # Left alone, the switch shows what it is doing: following
             # whether VoiceAttack has a voice pack.
@@ -16107,12 +17627,29 @@ class SettingsWindow(ctk.CTkToplevel):
         """Test voice: the test line, in the voice and at the rate the boxes
         show now."""
         theme, rate = self._picked("voice_theme"), self._picked("voice_rate")
+        began = time.time()
         if not self.app.speak("voice_test", force=True, theme=theme, rate=rate):
             return self.say("Nothing to speak with here: Voice Mode uses Windows' "
                             "own speech.", AMBER)
-        return self.say("Speaking: \"%s\" (%s, %s)." % (
-            VO.line_text("voice_test", theme), dict(VO.THEMES).get(theme, theme),
-            dict((v, n) for n, v in VO.RATES).get(rate, rate).lower()), GREEN)
+        # 1.10042: it says how it went once the speech process has had time
+        # to start and to fail, not the moment the line is queued.
+        words = VO.line_text("voice_test", theme)
+        names = (dict(VO.THEMES).get(theme, theme),
+                 dict((v, n) for n, v in VO.RATES).get(rate, rate).lower())
+        self.say("Testing the voice...", DIM)
+        self.after(int(VO.TEST_WAIT_S * 1000),
+                   lambda: self.voice_test_result(began, words, names))
+        return True
+
+    def voice_test_result(self, began, words, names):
+        """What Test voice says once it has waited: that the line was spoken,
+        or what stopped it."""
+        try:
+            problem = self.app.voice.problem(since=began)
+        except Exception:
+            problem = ""
+        text, tone = VO.test_report(problem, words, names[0], names[1])
+        return self.say(text, GREEN if tone == "ok" else RED)
 
     def make_voiceattack(self):
         """Make a VoiceAttack profile: from the keys on the Keys page now,
@@ -16252,6 +17789,50 @@ class SettingsWindow(ctk.CTkToplevel):
                                self.app.discord_send_job(hook, payload, name))
         self.say("Sent a test message to %s - look in the channel." % name, GREEN)
 
+    def save_settings_now(self):
+        """Settings > Your data > Save settings to a file (1.10042)."""
+        try:
+            from tkinter import filedialog
+            path = filedialog.asksaveasfilename(
+                parent=self, title="Save settings to a file",
+                defaultextension=".json", initialfile="EDSMT-settings.json",
+                filetypes=[("Settings", "*.json"), ("Any file", "*.*")],
+                initialdir=os.path.expanduser("~"))
+        except Exception:
+            path = ""
+        if not path:
+            return
+        try:
+            save_settings_file(path, self.app.settings)
+        except OSError as problem:
+            return self.say("Could not write the settings file: %s" % problem, RED)
+        self.say("Settings saved to %s - no keys or tokens are in it." % path, GREEN)
+
+    def load_settings_now(self):
+        """Settings > Your data > Load settings from a file (1.10042)."""
+        try:
+            from tkinter import filedialog
+            path = filedialog.askopenfilename(
+                parent=self, title="Load settings from a file",
+                filetypes=[("Settings", "*.json"), ("Any file", "*.*")],
+                initialdir=os.path.expanduser("~"))
+        except Exception:
+            path = ""
+        if not path:
+            return
+        try:
+            fresh, taken, ignored = load_settings_file(path, self.app.settings)
+        except ValueError as problem:
+            return self.say("Could not load that file: %s." % problem, RED)
+        self.app.apply_settings(fresh)
+        self.app.redraw()
+        self.app.say("%d setting(s) loaded%s. Your keys and tokens were not "
+                     "touched, and the settings you had are kept beside the "
+                     "file. A different app theme shows after a restart."
+                     % (taken, ", %d left out as unknown" % len(ignored) if ignored else ""),
+                     GREEN)
+        self.destroy()
+
     def restore_settings_now(self):
         """Put the picked dated copy of the settings back, and wear it."""
         copies = attr(self, "_history", None) or []
@@ -16276,6 +17857,102 @@ class SettingsWindow(ctk.CTkToplevel):
                      "different app theme shows after a restart."
                      % time.strftime("%d %b %H:%M", time.localtime(when)), GREEN)
         self.destroy()
+
+    def _audio_device_row(self, body):
+        """Output device: the system's default or another (1.10042, G2). Not
+        shown where there is nothing to choose from; it is said plainly."""
+        listing = attr(self.app, "audio", None)
+        if listing is None or not listing.available:
+            ctk.CTkLabel(body, text="Choosing an output device is not available here: the voice "
+                                    "and sounds use Windows' own audio, so on this system "
+                                    "they use the default device (or stay quiet).",
+                         font=F_SMALL, text_color=AMBER, justify="left", wraplength=560,
+                         anchor="w").pack(fill="x", padx=10, pady=(0, 6))
+            return
+        saved = str((attr(self.app, "settings", None) or {}).get("audio_device") or "")
+        items = listing.items() or []
+        options = AD.device_choices(items, keep=saved)
+        self._choice(body, "audio_device", "Output device", options,
+                     "The voice, the recordings and the rig warning sound play on this "
+                     "device. The proximity sonar's tones are played by Windows itself and "
+                     "always use the default device.")
+        row = ctk.CTkFrame(body, fg_color="transparent")
+        row.pack(fill="x", padx=10, pady=(0, 4))
+        self.devices_button = tip(ctk.CTkButton(
+            row, text="Refresh devices", width=150, height=28, font=F_STRONG, **BTN_SECONDARY,
+            command=self.refresh_devices), "Reads the list of output devices again - after "
+            "plugging in a headset, say.")
+        self.devices_button.pack(side="left")
+        self.device_note = ctk.CTkLabel(body, text="", font=F_SMALL, text_color=AMBER,
+                                        justify="left", wraplength=560, anchor="w")
+        self.device_note.pack(fill="x", padx=10, pady=(0, 6))
+        self.show_device_note()
+
+    def show_device_note(self):
+        """Say so, under the box, when the device chosen is not connected."""
+        try:
+            box, options = self.choices["audio_device"]
+            gone = options[-1][1] if options and options[-1][0] == AD.GONE_NAME else ""
+            self.device_note.configure(text=AD.choose(gone, self.app.audio.items() or [])[1] if gone else "")
+        except Exception:
+            pass
+
+    def refresh_devices(self):
+        """Read the devices again, off the window's thread, and put them in the
+        box when they are in. The device picked stays picked."""
+        listing = self.app.audio
+        listing.reload()
+        self._devices_wait = 0
+        self.after(150, self._devices_back)
+
+    def _devices_back(self):
+        try:
+            listing = self.app.audio
+            if not listing.ready and self._devices_wait < 100:
+                self._devices_wait += 1
+                return self.after(150, self._devices_back)
+            box, _old = self.choices["audio_device"]
+            picked = self._picked("audio_device")
+            options = AD.device_choices(listing.items() or [], keep=picked)
+            self.choices["audio_device"] = (box, options)
+            box.configure(values=[name for name, _v in options])
+            box.set(next((name for name, value in options if value == picked), options[0][0]))
+            self.show_device_note()
+        except Exception:
+            pass
+
+    def show_recordings(self):
+        """How much of the voice picked is recorded: the lines of the pack
+        and the building blocks for distances and directions (1.10042).
+        What has no recording is spoken by Windows. Never raises."""
+        try:
+            theme = VO.clean_theme(self.app.settings.get("voice_theme"))
+            folders = voice_folders()
+            lines = len(VO.LINES) - len(VO.unrecorded(theme, folders))
+            blocks = len(VB.ALL_BLOCKS) - len(VO.missing_blocks(theme, folders))
+            self.recordings_note.configure(text=(
+                "Recorded in this voice: %d of %d lines, %d of %d distance and direction "
+                "blocks. A line without a recording is spoken by Windows; a distance "
+                "and direction are only played from blocks when every block they need "
+                "is there." % (lines, len(VO.LINES), blocks, len(VB.ALL_BLOCKS))))
+        except Exception:
+            pass
+
+    def show_last_said(self):
+        """The newest line the voice spoke, on the Audio tab; the history
+        window has the rest. Never raises."""
+        try:
+            rows = VO.history_rows(self.app.voice.history())
+            text = ("Last said, %s: %s" % rows[0]) if rows else "Nothing said yet this run."
+            self.last_said.configure(text=text)
+        except Exception:
+            pass
+
+    def open_voice_history_window(self):
+        try:
+            self.app.open_voice_history()
+        except Exception as problem:
+            self.say("Could not open the voice history: %s" % problem, RED)
 
     def open_import_window(self):
         try:
@@ -16365,6 +18042,15 @@ class SettingsWindow(ctk.CTkToplevel):
             pass
         self.say(folder, None if open_path(folder) else AMBER)
 
+    def open_start_backup_folder(self):
+        folder = getattr(self.app, "backup_place", None) or STB.Place()
+        folder = folder.folder()
+        try:
+            os.makedirs(folder, exist_ok=True)
+        except OSError:
+            pass
+        self.say(folder, None if open_path(folder) else AMBER)
+
     def make_support_bundle(self):
         """One zip for a bug report: no secrets in it, and its folder opened."""
         path, problem = "", None
@@ -16410,10 +18096,12 @@ def about_text():
     """Settings > About EDSMT: which build, whose, and the small print."""
     return ("EDSMT %s  -  radioraxxla.com/EDSMT\n"
             "Copyright (C) 2026 Radio Raxxla. GPL-3.0-only - the source is on "
-            "GitHub at TheAnnouncer/EDSMT.\n"
+            "GitHub at RadioRaxxla/EDSMT.\n"
+            "The voices, sounds and logo: Radio Raxxla, all rights reserved - for "
+            "use within EDSMT only (ASSETS-LICENCE.txt).\n"
             "The Rhino: screenshot by CMDR TheAnnouncer. Elite Dangerous and "
             "the Rhino are (C) Frontier Developments plc. EDSMT is not "
-            "affiliated with Frontier Developments." % APP_VERSION)
+            "affiliated with Frontier Developments." % SHOWN_VERSION)
 
 
 # The welcome window's HOW IT WORKS picture, in pixels before scaling, and
@@ -16423,6 +18111,254 @@ SUPPORT_WORDS = ("EDSMT and the community map's server are run for free by Radio
                  "Raxxla. If it has earned you a few credits, a donation helps "
                  "with the running costs and with the fund for a code-signing "
                  "certificate, so Windows stops warning about the download.")
+
+
+class MapKeyWindow(ctk.CTkToplevel):
+    """The map's key (1.10042): what every mark is, in plain words, and a
+    switch for each layer. Opened by the "?" on the map, the map's
+    right-click menu, Help and the welcome's "How to customise the map"."""
+
+    def __init__(self, app):
+        super().__init__(app)
+        self.app = app
+        self.title("EDSMT - Map key")
+        self.configure(fg_color=VOID)
+        self.geometry("620x680")
+        self.minsize(460, 360)
+        self.transient(app)
+        self.toggles = {}
+        foot = ctk.CTkFrame(self, fg_color=RAIL, corner_radius=0)
+        foot.pack(side="bottom", fill="x")
+        tip(ctk.CTkButton(foot, text="Close", width=110, height=32, font=F_STRONG,
+                          **BTN_SECONDARY, command=self.destroy),
+            "Closes the key. The switches are kept as you set them.").pack(
+                side="right", padx=14, pady=10)
+        body = ctk.CTkScrollableFrame(self, **LIST)
+        body.pack(side="top", fill="both", expand=True, padx=12, pady=(12, 8))
+        ctk.CTkLabel(body, text=MK.TITLE, font=F_TITLE, text_color=ORANGE,
+                     anchor="w").pack(fill="x", padx=12, pady=(8, 2))
+        ctk.CTkLabel(body, text=MK.WHERE_SWITCHES, font=F_BODY, text_color=MUTED,
+                     anchor="w", justify="left", wraplength=540).pack(
+                         fill="x", padx=12, pady=(0, 8))
+        hud_header(body, "What is drawn", padx=12, pady=(6, 2))
+        for setting, _name, label, _default in MK.LAYERS:
+            var = ctk.BooleanVar(value=False)
+            tip(ctk.CTkSwitch(body, text=label, variable=var, font=F_BODY, **SWITCH,
+                              command=lambda k=setting: self.switched(k)),
+                MK.TIPS.get(setting)).pack(anchor="w", padx=14, pady=3)
+            self.toggles[setting] = var
+        hud_header(body, "What every mark is", padx=12, pady=(10, 2))
+        self.names = []
+        for name, words, _state in MK.key_lines():
+            title = ctk.CTkLabel(body, text=name, font=F_STRONG, text_color=AMBER,
+                                 anchor="w")
+            title.pack(fill="x", padx=14, pady=(6, 0))
+            self.names.append((name, title))
+            ctk.CTkLabel(body, text=words, font=F_BODY, text_color=TEXT, anchor="w",
+                         justify="left", wraplength=540).pack(fill="x", padx=14)
+        self.bind("<Escape>", lambda _e: self.destroy())
+        self.show_layers()
+
+    def show_layers(self):
+        """The switches as the settings have them now, and "(switched off)"
+        beside each mark whose layer is hidden."""
+        layers = MK.layers(self.app.settings)
+        for setting, name, _label, _default in MK.LAYERS:
+            self.toggles[setting].set(bool(layers.get(name)))
+        states = {name: state for name, _words, state in MK.key_lines({"layers": layers})}
+        for name, title in self.names:
+            off = states.get(name) == "off"
+            title.configure(text=name + ("  (switched off)" if off else ""),
+                            text_color=DIM if off else AMBER)
+
+    def switched(self, setting):
+        """A switch flicked here: the map and the scope follow at once."""
+        name = next((n for k, n, _l, _d in MK.LAYERS if k == setting), "")
+        return self.app.set_map_layer(name, bool(self.toggles[setting].get()))
+
+
+class VoiceHistoryWindow(ctk.CTkToplevel):
+    """What did it say? (1.10042): the last 50 lines the voice spoke, newest
+    first, each with the time. Opened from Help and Settings > Audio."""
+
+    def __init__(self, app):
+        super().__init__(app)
+        self.app = app
+        self.title("EDSMT - What did it say?")
+        self.configure(fg_color=VOID)
+        self.geometry("560x520")
+        self.minsize(380, 260)
+        self.transient(app)
+        foot = ctk.CTkFrame(self, fg_color=RAIL, corner_radius=0)
+        foot.pack(side="bottom", fill="x")
+        tip(ctk.CTkButton(foot, text="Close", width=110, height=32, font=F_STRONG,
+                          **BTN_SECONDARY, command=self.destroy),
+            "Closes the list.").pack(side="right", padx=14, pady=10)
+        tip(ctk.CTkButton(foot, text="Refresh", width=110, height=32, font=F_STRONG,
+                          **BTN_SECONDARY, command=self.refresh),
+            "Reads the list again.").pack(side="right", padx=4, pady=10)
+        self.note = ctk.CTkLabel(self, text="", font=F_BODY, text_color=MUTED,
+                                 anchor="w", justify="left", wraplength=520)
+        self.note.pack(side="top", fill="x", padx=14, pady=(12, 4))
+        self.box = ctk.CTkTextbox(self, font=F_BODY, text_color=TEXT, wrap="word")
+        self.box.pack(side="top", fill="both", expand=True, padx=12, pady=(0, 8))
+        self.bind("<Escape>", lambda _e: self.destroy())
+        self.refresh()
+
+    def refresh(self):
+        speaker = attr(self.app, "voice", None)
+        rows = VO.history_rows(speaker.history() if speaker is not None else [])
+        self.box.configure(state="normal")
+        self.box.delete("1.0", "end")
+        for clock, words in rows:
+            self.box.insert("end", "%s   %s\n" % (clock, words))
+        self.box.configure(state="disabled")
+        self.note.configure(text=(
+            "The last %d line%s the voice spoke, newest first." % (len(rows), "" if len(rows) == 1 else "s")
+            if rows else "Nothing has been spoken yet. Switch Voice Mode on in Settings > Audio."))
+
+
+class KeepingRightWindow(ctk.CTkToplevel):
+    """Keeping the map right (1.10042): the how-to, in the guide's words.
+    Opened from Help."""
+
+    def __init__(self, app):
+        super().__init__(app)
+        self.app = app
+        self.title("EDSMT - " + RC.HOWTO_TITLE)
+        self.configure(fg_color=VOID)
+        self.geometry("560x460")
+        self.minsize(380, 260)
+        self.transient(app)
+        foot = ctk.CTkFrame(self, fg_color=RAIL, corner_radius=0)
+        foot.pack(side="bottom", fill="x")
+        tip(ctk.CTkButton(foot, text="Close", width=110, height=32, font=F_STRONG,
+                          **BTN_SECONDARY, command=self.destroy),
+            "Closes this.").pack(side="right", padx=14, pady=10)
+        self.box = ctk.CTkTextbox(self, font=F_BODY, text_color=TEXT, wrap="word")
+        self.box.pack(side="top", fill="both", expand=True, padx=12, pady=(12, 8))
+        self.box.insert("end", RC.HOWTO_WORDS)
+        self.box.configure(state="disabled")
+        self.bind("<Escape>", lambda _e: self.destroy())
+
+    def text_shown(self):
+        return self.box.get("1.0", "end")
+
+
+class VisitedWindow(ctk.CTkToplevel):
+    """Visited, not updated (1.10042): the deposits you drove onto and did
+    not answer "Still there? UPDATE or MINED OUT" for, each with Still there,
+    Mined out and Skip. A row says which deposit it is - what is recorded for
+    it, where it lies in its location and how far it is from you - and Show
+    picks it in the main window, because two deposits of one commodity in one
+    location have the same name. A small window beside the main one - nothing
+    waits on it - and it closes itself when the list is empty."""
+
+    def __init__(self, app):
+        super().__init__(app)
+        self.app = app
+        self.title("EDSMT - Visited, not updated")
+        self.configure(fg_color=VOID)
+        self.geometry("760x380")
+        self.minsize(560, 220)
+        self._buttons = []
+        self._texts = []
+        self.note = ctk.CTkLabel(
+            self, text="You drove onto these and left without UPDATE or MINED OUT. "
+                       "One click each; Skip leaves the deposit as it is. Show picks "
+                       "the deposit in the main window, on the map and in the details.",
+            font=F_BODY, text_color=MUTED, anchor="w", justify="left", wraplength=720)
+        self.note.pack(side="top", fill="x", padx=14, pady=(12, 6))
+        self.body = ctk.CTkScrollableFrame(self, fg_color=VOID)
+        self.body.pack(side="top", fill="both", expand=True, padx=10, pady=(0, 6))
+        foot = ctk.CTkFrame(self, fg_color=RAIL, corner_radius=0)
+        foot.pack(side="bottom", fill="x")
+        tip(ctk.CTkButton(foot, text="Close", width=110, height=32, font=F_STRONG,
+                          **BTN_SECONDARY, command=self.destroy),
+            "Closes the list. What is left on it is here at the next start.").pack(
+                side="right", padx=14, pady=10)
+        self.bind("<Escape>", lambda _e: self.destroy())
+        self.refresh()
+
+    def refresh(self):
+        for child in list(self.body.winfo_children()):
+            child.destroy()
+        self._buttons = []
+        self._texts = []
+        rows = self.app.visits.pending(attr(self.app.store, "deposits", None))
+        if not rows:
+            self.after(0, self.destroy)
+            return
+        here = self._here()
+        for row in rows:
+            line = ctk.CTkFrame(self.body, fg_color=PANEL, corner_radius=4)
+            line.pack(fill="x", pady=2)
+            try:
+                far, bearing = STR.from_centre(self.app.store, row)
+                words = RC.visit_lines(row, STR.where_text(far, bearing, _metres),
+                                       RC.away_metres(row, here), _metres)
+            except Exception:
+                words = RC.visit_lines(row)
+            words = [w for w in words if w]
+            self._texts.append("\n".join(words))
+            # The answers first, from the right, so a long line cannot push
+            # them out of the window.
+            for label, how in (("Skip", "skip"), ("Mined out", "mined"), ("Still there", "still")):
+                button = ctk.CTkButton(line, text=label, width=90, height=28, font=F_SMALL,
+                                       **(BTN_PRIMARY if how == "still" else BTN_SECONDARY),
+                                       command=lambda i=row["id"], h=how: self.answer(i, h))
+                button.pack(side="right", padx=3, pady=6)
+                self._buttons.append((label, button))
+            show = tip(ctk.CTkButton(line, text="Show", width=64, height=28, font=F_SMALL,
+                                     **BTN_SECONDARY, command=lambda i=row["id"]: self.show(i)),
+                       "Picks this deposit in the main window, so the map and the details "
+                       "show which one it is. It stays on this list.")
+            show.pack(side="right", padx=(10, 3), pady=6)
+            self._buttons.append(("Show", show))
+            text = ctk.CTkFrame(line, fg_color="transparent")
+            text.pack(side="left", fill="x", expand=True, padx=10, pady=6)
+            for number, words_line in enumerate(words):
+                if number == 0:
+                    ctk.CTkLabel(text, text=words_line, font=F_BODY, text_color=TEXT,
+                                 anchor="w", justify="left").pack(fill="x")
+                else:
+                    ctk.CTkLabel(text, text=words_line, font=F_SMALL, text_color=MUTED,
+                                 anchor="w", justify="left").pack(fill="x")
+
+    def _here(self):
+        """Where the commander is now, for "from you" - None when not known."""
+        try:
+            system, body = self.app.here()
+            state = attr(self.app, "game", None)
+            if system and body and state is not None and state.has_position:
+                return {"system": system, "body": body, "lat": state.lat, "lon": state.lon,
+                        "radius_m": state.radius_m}
+        except Exception:
+            pass
+        return None
+
+    def button_texts(self):
+        return [label for label, _button in self._buttons]
+
+    def row_texts(self):
+        """What each row says, top to bottom."""
+        return list(self._texts)
+
+    def show(self, deposit_id):
+        """Pick that deposit in the main window. It stays on the list."""
+        row = next((d for d in (attr(self.app.store, "deposits", None) or [])
+                    if str(d.get("id")) == str(deposit_id)), None)
+        if row is not None:
+            try:
+                self.app.on_pick(row)
+            except Exception as exc:
+                self.app.trouble("Showing the deposit", exc)
+        return row
+
+    def answer(self, deposit_id, how):
+        self.app.visit_answer(deposit_id, how)
+        if self.winfo_exists():
+            self.refresh()
 
 
 class WelcomeWindow(ctk.CTkToplevel):
@@ -16503,7 +18439,7 @@ class WelcomeWindow(ctk.CTkToplevel):
         head.pack(pady=(10, 2))
         ctk.CTkLabel(head, text="Welcome to EDSMT", font=F_TITLE,
                      text_color=ORANGE).pack(side="left")
-        ctk.CTkLabel(head, text=APP_VERSION, font=F_SMALL_B, text_color=VOID,
+        ctk.CTkLabel(head, text=SHOWN_VERSION, font=F_SMALL_B, text_color=VOID,
                      fg_color=AMBER, corner_radius=0, width=76,
                      height=22).pack(side="left", padx=(12, 0))
         ctk.CTkLabel(body, text="Surface mining for the Rhino SRV, read from your journal",
@@ -16525,8 +18461,8 @@ class WelcomeWindow(ctk.CTkToplevel):
             "Closes this and opens Settings.").pack(pady=(0, 16))
 
         # What's new: the headlines of this version's patch notes.
-        self.headlines = WL.read_whats_new(shipped_file("CHANGELOG.md"), APP_VERSION)
-        hud_header(body, "What's new in " + APP_VERSION, padx=16, pady=(10, 4))
+        self.headlines = WL.read_whats_new(shipped_file("CHANGELOG.md"), SHOWN_VERSION)
+        hud_header(body, "What's new in " + SHOWN_VERSION, padx=16, pady=(10, 4))
         for line in self.headlines:
             ctk.CTkLabel(body, anchor="w", justify="left", text="\u2022  " + line,
                          font=F_BODY, text_color=TEXT, wraplength=wrap,
@@ -16554,6 +18490,28 @@ class WelcomeWindow(ctk.CTkToplevel):
                               command=lambda u=url: open_link(u)),
                 note).grid(row=index // across, column=index % across,
                            padx=(0, 8), pady=(0, 6), sticky="w")
+
+        # 1.10042: what is on the map and how to change it.
+        hud_header(body, MK.TITLE, padx=16, pady=(10, 4))
+        ctk.CTkLabel(body, anchor="w", justify="left", text_color=TEXT,
+                     font=F_BODY, wraplength=wrap,
+                     text="The small circles on the map are the guided survey's "
+                          "points: where to press your mineral scanner if you "
+                          "don't hold it down all the time. The amber ring is "
+                          "your survey border, the dashed circles are the ones "
+                          "to drive, the white arrow is you. " + MK.WHERE_SWITCHES
+                     ).pack(fill="x", padx=16, pady=(2, 4))
+        key_row = ctk.CTkFrame(body, fg_color="transparent")
+        key_row.pack(fill="x", padx=16, pady=(2, 6))
+        tip(ctk.CTkButton(key_row, text="Map key and switches", width=200, height=32,
+                          font=F_STRONG, **BTN_SECONDARY,
+                          command=lambda: self.app.open_map_key()),
+            "What every mark on the map is, with a switch for each layer.").pack(side="left")
+
+        hud_header(body, RC.HOWTO_TITLE, padx=16, pady=(10, 4))
+        ctk.CTkLabel(body, anchor="w", justify="left", text_color=TEXT,
+                     font=F_BODY, wraplength=wrap,
+                     text=RC.HOWTO_WORDS.split("\n\n")[0]).pack(fill="x", padx=16, pady=(2, 4))
 
         hud_header(body, "One map, everybody's", padx=16, pady=(10, 4))
         ctk.CTkLabel(body, anchor="w", justify="left", text_color=TEXT,
@@ -16592,6 +18550,17 @@ class WelcomeWindow(ctk.CTkToplevel):
                                   command=lambda u=url: open_link(u)),
                     "Opens the donation page in your browser.").pack(
                         side="left", padx=(0, 8))
+        # 1.10042: the author's affiliate link, with what it is in sight.
+        partner = ctk.CTkFrame(body, fg_color="transparent")
+        partner.pack(fill="x", padx=16, pady=(2, 6))
+        tip(ctk.CTkButton(partner, text=WL.HCS_LABEL, width=200, height=34,
+                          font=F_STRONG, **BTN_SECONDARY,
+                          command=lambda: open_link(WL.HCS_URL)),
+            "Opens the HCS Voice Packs store in your browser.").pack(
+                side="left", padx=(0, 8))
+        ctk.CTkLabel(partner, anchor="w", justify="left", text_color=MUTED,
+                     font=F_SMALL, wraplength=max(200, wrap - 220),
+                     text=WL.HCS_WORDS).pack(side="left", fill="x", expand=True)
 
         hud_header(body, "Useful links", padx=16, pady=(10, 4))
         grid = ctk.CTkFrame(body, fg_color="transparent")
@@ -16672,6 +18641,54 @@ class WelcomeWindow(ctk.CTkToplevel):
                     self.app.after(500, self.app.start_tour)
             except Exception:
                 pass
+
+
+class VoiceQuestionWindow(ctk.CTkToplevel):
+    """Do you want EDSMT to speak? (1.10042, G6): Yes, No or Choose a voice,
+    put once before any voice is heard. Closing the window with its close box
+    is an answer that leaves the voice as it was; closing EDSMT is not an
+    answer, and it is asked again."""
+
+    def __init__(self, app, then=None):
+        super().__init__(app)
+        self.app = app
+        self.then = then
+        self.done = False
+        self.title("EDSMT - Voice")
+        self.icon_worn = wear_icon(self)
+        self.configure(fg_color=VOID)
+        self.transient(app)
+        self.resizable(False, False)
+        ctk.CTkLabel(self, text=VQ.QUESTION, font=F_TITLE, text_color=ORANGE,
+                     anchor="w").pack(fill="x", padx=20, pady=(18, 6))
+        ctk.CTkLabel(self, text=VQ.NOTE, font=F_BODY, text_color=TEXT, justify="left",
+                     wraplength=420, anchor="w").pack(fill="x", padx=20, pady=(0, 12))
+        row = ctk.CTkFrame(self, fg_color="transparent")
+        row.pack(fill="x", padx=20, pady=(0, 18))
+        for key, name in VQ.ANSWERS:
+            ctk.CTkButton(row, text=name, width=120, height=32, font=F_STRONG,
+                          **(BTN_PRIMARY if key == "yes" else BTN_SECONDARY),
+                          command=lambda k=key: self.answer(k)).pack(side="left", padx=(0, 8))
+        self.protocol("WM_DELETE_WINDOW", lambda: self.answer(""))
+        self.update_idletasks()
+        try:
+            self.geometry("+%d+%d" % (app.winfo_rootx() + 80, app.winfo_rooty() + 80))
+        except Exception:
+            pass
+
+    def answer(self, key):
+        if self.done:
+            return
+        self.done = True
+        try:
+            self.app.voice_answered(key)
+        finally:
+            try:
+                self.destroy()
+            except Exception:
+                pass
+            if self.then:
+                self.app.after(50, self.then)
 
 
 class EditLocationWindow(ctk.CTkToplevel):
@@ -17768,19 +19785,6 @@ def mini_button(parent, text, command, primary=False):
     return label
 
 
-def row_buttons(table, index, buttons):
-    """A row's copy and verify buttons, in the copy column.
-
-    buttons is [(text, command, primary)]. Nothing is drawn for none."""
-    if not buttons:
-        return None
-    box = tk.Frame(table, bg=PANEL, bd=0)
-    box.grid(row=index, column=COPY_COLUMN, padx=6, pady=1, sticky="w")
-    for text, command, primary in buttons:
-        mini_button(box, text, command, primary).pack(side="left", padx=2)
-    return box
-
-
 def cell_full(cell):
     """A table cell's whole text: its fourth part, when the cell shows a
     short form of a sentence (1.10038), else what it shows. What Copy
@@ -17788,19 +19792,6 @@ def cell_full(cell):
     if len(cell) > 3 and cell[3]:
         return str(cell[3])
     return str(cell[0])
-
-
-def cell_label(table, index, column, text, colour=None, wrap=None, full=None):
-    """One table cell: a plain Tk label, never the toolkit's. `full`, when
-    it says more than `text`, is the cell's tooltip."""
-    label = tk.Label(table, text=text, font=F_SMALL, fg=colour or TEXT, bg=PANEL,
-                     justify="left", anchor="w", wraplength=wrap or CELL_WRAP,
-                     bd=0)
-    label.grid(row=index, column=DATA_COLUMN_0 + column, padx=8,
-               pady=SPACE["cell_pady"], sticky="w")
-    if full and str(full) != str(text):
-        tip(label, full, always=True)
-    return label
 
 
 # A scrollbar decision settles within this many rounds, and a bar shown and
@@ -18014,8 +20005,9 @@ class ScrollTable(ctk.CTkFrame):
 # thousand rows were ten thousand widgets, built again on every sort, and
 # that grid is what let the scrollbar loop in 1.10037. They now sit on a tree
 # view holding only the rows on screen (tableview.py does the arithmetic):
-# scrolling changes which rows those are. The small fixed tables - Where to
-# sell, Powerplay, the leaderboard - stay on ScrollTable.
+# scrolling changes which rows those are. The Powerplay tool's two tables
+# and the Leaderboard joined them in 1.10042, twenty rows a page
+# (PagedTable); Earnings' few rows of Where to sell stay on ScrollTable.
 
 TABLE_STYLE = "EDSMT.Treeview"
 # Rows the wheel moves at a time.
@@ -18151,10 +20143,12 @@ class NativeTable(tk.Frame):
         self.grid_columnconfigure(0, weight=1)
         for name, colour in (("good", GREEN), ("caution", AMBER), ("bad", RED)):
             self.tree.tag_configure(name, foreground=colour)
+        # 1.10042: the commander's own row on the Leaderboard, in the accent.
+        self.tree.tag_configure("own", foreground=ORANGE)
         self.tree.tag_configure("picked", background=RULE, foreground=AMBER)
         self._headers, self._rows, self._widths = [], [], []
         self._cells_of = self._actions_of = self._double = self._on_sort = None
-        self._tone_columns = None
+        self._tone_columns = self._own_of = None
         self._sort = (None, False)
         self._cache = {}
         self._offset, self._visible = 0, TABLE_FIRST_ROWS
@@ -18164,6 +20158,9 @@ class NativeTable(tk.Frame):
         self._empty = False
         self._settled_width = None
         self._tip = CellTip(self.tree)
+        # 1.10042: the window may ask to be told which row is the picked
+        # one - on_pick(row or None), once per change.
+        self.on_pick, self._told = None, None
         tree = self.tree
         tree.bind("<Configure>", self._resized, add="+")
         tree.bind("<ButtonPress-1>", self._press, add="+")
@@ -18183,9 +20180,12 @@ class NativeTable(tk.Frame):
     # -- taking delivery ---------------------------------------------------
 
     def show(self, headers, rows, cells, actions=None, double=None,
-             sort=(None, False), on_sort=None, widths=None, tone_columns=None):
+             sort=(None, False), on_sort=None, widths=None, tone_columns=None,
+             own=None):
         """Put a result set in the table. The rows picked before stay picked
-        when they are still there; otherwise the first row is."""
+        when they are still there; otherwise the first row is. `own`, when
+        given, says of a row whether it is the commander's own (1.10042):
+        that row is marked in the accent colour."""
         try:
             self._empty = False
             self.advice.grid_forget()
@@ -18199,7 +20199,7 @@ class NativeTable(tk.Frame):
             self._headers, self._rows = list(headers), list(rows)
             self._cells_of, self._actions_of, self._double = cells, actions, double
             self._on_sort, self._sort = on_sort, tuple(sort or (None, False))
-            self._tone_columns = tone_columns
+            self._tone_columns, self._own_of = tone_columns, own
             self._cache = {}
             self._row_px = dress_tables(self)
             self._font = tkfont.Font(font=F_SMALL)
@@ -18324,8 +20324,13 @@ class NativeTable(tk.Frame):
             full.append(cell_full(cell))
             if self._tone_columns is None or column in self._tone_columns:
                 colours.append(colour)
-        found = (shown, full, TV.row_tone(colours, {"bad": RED, "caution": AMBER,
-                                                    "good": GREEN}))
+        tone = TV.row_tone(colours, {"bad": RED, "caution": AMBER, "good": GREEN})
+        if self._own_of is not None:
+            try:
+                tone = "own" if self._own_of(self._rows[index]) else tone
+            except Exception:       # noqa: BLE001 - a window's fault must not stop the table
+                pass
+        found = (shown, full, tone)
         self._cache[index] = found
         return found
 
@@ -18430,8 +20435,23 @@ class NativeTable(tk.Frame):
         except Exception:
             pass
 
+    def _picked_changed(self):
+        """Tell the window when the picked row is a different one."""
+        if self.on_pick is None:
+            return
+        row = self.focus_row()
+        key = None if row is None else id(row)
+        if key == self._told:
+            return
+        self._told = key
+        try:
+            self.on_pick(row)
+        except Exception:       # noqa: BLE001 - a window's fault must not stop the table
+            pass
+
     def _paint_bar(self):
         """The picked row's buttons, on the line under the table."""
+        self._picked_changed()
         try:
             for widget in self.bar.winfo_children():
                 if widget is not self.bar_label:
@@ -18763,6 +20783,12 @@ class MaterialsWindow(ctk.CTkToplevel):
                               ("The thirteen", self.tick_thirteen)):
             ctk.CTkButton(quick, text=text, width=110, height=28, font=F_STRONG,
                           **BTN_SECONDARY, command=command).pack(side="left", padx=(0, 6))
+        # 1.10042: only those worth a Rhino trip at the prices known now.
+        tip(ctk.CTkButton(quick, text="Worth mining only", width=140, height=28, font=F_STRONG,
+                          **BTN_SECONDARY, command=self.tick_worth),
+            "Ticks only the materials selling for %s Cr/t or more at the prices known now "
+            "(a market you opened has the last word). One with no price known is left out."
+            % "{:,}".format(MT.WORTH_LINE_CR)).pack(side="left", padx=(0, 6))
         bottom = ctk.CTkFrame(self, fg_color="transparent")
         bottom.pack(side="bottom", fill="x", padx=12, pady=(4, 12))
         ctk.CTkButton(bottom, text="Save", width=110, height=32, font=F_STRONG,
@@ -18789,6 +20815,17 @@ class MaterialsWindow(ctk.CTkToplevel):
     def tick_all(self, on):
         for var in self.ticks.values():
             var.set(bool(on))
+
+    def tick_worth(self):
+        prices = {}
+        try:
+            prices = self.app.market_prices() or {}
+        except Exception:
+            prices = {}
+        worth = {SV.fold(name) for name in MT.worth_mining(list(self.ticks), prices)}
+        for name, var in self.ticks.items():
+            var.set(SV.fold(name) in worth)
+        self.status.configure(text="%d worth mining." % len(worth), text_color=DIM)
 
     def tick_thirteen(self):
         thirteen = {SV.fold(name) for name in MT.choices([])[0][1]}
@@ -19212,6 +21249,9 @@ FIND_MODE_TIPS = {
               "with the odds for the first ticked commodity on that kind of ground.",
     "powerplay": "Where to mine and where to sell for a Powerplay goal: one row "
                  "for each pair, with what it is worth an hour where that is known.",
+    "due": "Your deposits nobody has confirmed for a while, and worked-out ones that "
+           "may be back - nearest first - with other commanders' finds on the bodies "
+           "you have been to, each saying whose it is. Press Search to read them.",
 }
 PLACE_WORDS = {
     # The system box narrows finds to a system or body; for prices it says
@@ -19235,6 +21275,32 @@ def packed_with(widget):
         return {}
     info.pop("in", None)
     return info
+
+
+GO_BACK_LABEL = "Go back to the previous version"
+
+
+def export_csv_table(window, what, headers, rows):
+    """Ask where, then write `rows` (lists of cell text) as a CSV (1.10042).
+    Says the result on the window's status line. Never raises."""
+    if not rows:
+        return window.say("Nothing to export yet.", AMBER)
+    try:
+        from tkinter import filedialog
+        path = filedialog.asksaveasfilename(
+            parent=window, title="Export %s as CSV" % what,
+            defaultextension=".csv", initialfile=CSVX.file_name(what),
+            filetypes=[("CSV for Excel", "*.csv"), ("Any file", "*.*")],
+            initialdir=documents_dir())
+    except Exception:
+        path = ""
+    if not path:
+        return None
+    try:
+        count = CSVX.write(path, headers, rows)
+    except OSError as problem:
+        return window.say("Could not write the CSV: %s" % problem, RED)
+    return window.say("Exported %d row(s) to %s" % (count, path), GREEN)
 
 
 class FindWindow(ToolWindow):
@@ -19475,6 +21541,9 @@ class FindWindow(ToolWindow):
         tip(ctk.CTkButton(actions, text="Copy all", width=100, height=32,
                       font=F_STRONG, **BTN_SECONDARY,
                       command=self.copy_all), "Copies the table as text, ready to paste into Discord.").pack(side="right")
+        tip(ctk.CTkButton(actions, text="Export CSV", width=110, height=32,
+                      font=F_STRONG, **BTN_SECONDARY,
+                      command=self.export_csv), "Saves what is shown as a CSV file Excel opens.").pack(side="right", padx=(0, 6))
         self.search_button = tip(ctk.CTkButton(
             actions, text="Search", width=120, height=32, font=F_STRONG,
             **BTN_PRIMARY, command=self.search),
@@ -19670,7 +21739,8 @@ class FindWindow(ToolWindow):
         mode = attr(self, "mode", None) or FD.DEFAULT_MODE
         return {"sites": self.search_sites, "intact": self.search_intact,
                 "deposits": self.search_deposits, "prices": self.search_prices,
-                "bodies": self.search_bodies, "powerplay": self.search_powerplay}[mode]()
+                "bodies": self.search_bodies, "powerplay": self.search_powerplay,
+                "due": self.search_due}[mode]()
 
     def _enter_key(self, _event=None):
         self.search()
@@ -19984,6 +22054,66 @@ class FindWindow(ToolWindow):
             self.after(index * QUOTE_GAP_MS,
                        lambda n=name: sell(commodity=n, near_system=near,
                                            near=here, within_ly=radius))
+
+    def search_due(self):
+        """Due a check (1.10042): your own deposits nobody has confirmed for a
+        while, and worked-out ones that may be back - nearest first. Read from
+        your own records; nothing is asked of the network."""
+        app = self.app
+        names = {SV.fold(SV.canonical(n) or n) for n in self._commodities()}
+        here = None
+        try:
+            system, body = app.here()
+            state = attr(app, "game", None)
+            if system and body and state is not None and state.has_position:
+                here = {"system": system, "body": body, "lat": state.lat, "lon": state.lon,
+                        "radius_m": state.radius_m}
+            elif system:
+                here = {"system": system, "body": body or ""}
+        except Exception:
+            here = None
+        deposits = [d for d in (attr(app.store, "deposits", None) or [])
+                    if not names or SV.fold(SV.canonical(d.get("commodity")) or d.get("commodity")) in names]
+        now = time.time()
+        found = RC.due_rows(deposits, now, regrow_days=app.crowd_figures().regrow_days,
+                            here=here)
+        # 1.2: other commanders' finds fetched on the bodies you have been to.
+        found = RC.due_order(found + app.shared_due(now, here, names))
+        rows = []
+        for item in found:
+            deposit = item["deposit"]
+            rows.append(dict(item, system=deposit.get("system"), planet=deposit.get("body"),
+                             body=deposit.get("body"), spot=deposit.get("location"),
+                             commodity=deposit.get("commodity"), type=deposit.get("commodity"),
+                             rigs=deposit.get("rigs")))
+        self._cut = False
+        self._render(rows, ["Commodity", "Rigs", "Where", "Distance", "Why"], self._due_row,
+                     "Nothing of yours is due a check. A deposit is due when nobody has "
+                     "confirmed it for %d days, or a worked-out one may be back." % RC.CONFIRM_DAYS,
+                     kind="due")
+        theirs = len([row for row in rows if row.get("theirs")])
+        if not rows:
+            self.say("Nothing of yours is due a check.", GREEN)
+        elif not theirs:
+            self.say("%d of your deposits %s due a check." % (len(rows), "is" if len(rows) == 1 else "are"),
+                     AMBER)
+        else:
+            self.say("%d deposit%s due a check: %d of yours, %d other commanders'." % (
+                len(rows), " is" if len(rows) == 1 else "s are", len(rows) - theirs, theirs), AMBER)
+        return rows
+
+    @staticmethod
+    def _due_row(row):
+        far = row.get("metres")
+        where = "%s - %s%s" % (row.get("system") or "-", row.get("body") or "-",
+                               (", signal %s" % row["spot"]) if row.get("spot") else "")
+        return [(str(row.get("commodity") or "-"), None, str(row.get("commodity") or "").lower()),
+                (str(row["rigs"]) if str(row.get("rigs") or "").strip() else "-", None,
+                 FD.whole_number(row.get("rigs"), 0)),
+                (where, None, where.lower()),
+                (_metres(far) if far is not None else "-", None, 1e12 if far is None else far),
+                (row.get("words") or "", AMBER if row.get("kind") == "back" else None,
+                 -(row.get("days") or 0))]
 
     def search_bodies(self):
         """Bodies with mining locations near where the commander is (1.10036,
@@ -20654,6 +22784,19 @@ class FindWindow(ToolWindow):
         self.say("Copied %d row(s) - paste it straight into Discord."
                  % (len(block.splitlines()) - 1), GREEN)
 
+    def csv_rows(self):
+        """(headers, rows of cell text) for what is shown - what Export CSV
+        writes. Empty rows when nothing is."""
+        if self._builder is None:
+            return [], []
+        rows = self._sorted(self._visible())
+        return list(self._headers), [[self._cell(c)[0] for c in self._builder(row)]
+                                     for row in rows]
+
+    def export_csv(self):
+        headers, rows = self.csv_rows()
+        return export_csv_table(self, "Find results", headers, rows)
+
     def as_text(self):
         """What is on screen, as plain lines. Empty when nothing is."""
         if self._builder is None:
@@ -21122,6 +23265,11 @@ class EarningsWindow(ToolWindow):
             font=F_STRONG, **BTN_SECONDARY, command=self.copy_all),
             "Copies the sessions as text, ready to paste into Discord.")
         self.sessions_copy.pack(side="right")
+        self.sessions_csv = tip(ctk.CTkButton(
+            self.sessions_bar, text="Export CSV", width=110, height=32,
+            font=F_STRONG, **BTN_SECONDARY, command=self.export_csv),
+            "Saves the sessions as a CSV file Excel opens.")
+        self.sessions_csv.pack(side="right", padx=(0, 6))
         self.refresh_button = tip(ctk.CTkButton(
             self.sessions_bar, text="Refresh", width=100, height=32,
             font=F_STRONG, **BTN_PRIMARY, command=self.refresh),
@@ -21860,6 +24008,13 @@ class EarningsWindow(ToolWindow):
         audits = getattr(self.app.earnings, "audits", None) or []
         if audits:
             text += "\n" + JR.audit_words(audits[-1])
+        # 1.10042 (#173): your Rhinos' totals, beside the wing's when the
+        # wing link is on - labelled as yours, since tonnes are not shared.
+        settings = getattr(self.app, "settings", None)
+        wing = bool(settings.get("wing_link")) if isinstance(settings, dict) else False
+        rhinos = RT.line(self._rows, wing)
+        if rhinos:
+            text += "\n" + rhinos
         self.summary.configure(text=text)
         self._show_current()
         self.holding.configure(text=self._holding() or
@@ -22159,6 +24314,17 @@ class EarningsWindow(ToolWindow):
             return self.say("Could not reach the clipboard: %s" % exc, RED)
         self.say("Copied %d row(s) - paste it straight into Discord."
                  % (len(block.splitlines()) - 1), GREEN)
+
+    def csv_rows(self):
+        """(headers, rows of cell text) for the sessions as sorted on
+        screen - what Export CSV writes."""
+        rows = self._sorted(list(self._rows))
+        return list(RUN_HEADERS), [[self._cell(c)[0] for c in self._run_row(row)]
+                                   for row in rows]
+
+    def export_csv(self):
+        headers, rows = self.csv_rows()
+        return export_csv_table(self, "Rhino sessions", headers, rows)
 
     def as_text(self):
         """What is on screen, as plain lines. Empty when nothing is."""
@@ -23383,6 +25549,80 @@ def site_cells(site, here=("", ""), prices=None):
     ]
 
 
+# 1.10042: the deposits of the site picked in My sites.
+DEPOSIT_HEADERS = ("Commodity", "Rigs", "From centre", "Mined", "Est. left",
+                   "Amount", "Density", "Marked")
+DEPOSIT_TONE_COLUMNS = (5,)     # a worked-out deposit is toned by its Amount
+DEPOSITS_PANE_PX = 300
+# 1.10042: the data window's places list, deposit card and map picture.
+PLACES_PX = 380
+PLACES_HEADERS = ("Systems, bodies and locations", "Rigs", "Mined", "From you")
+PLACES_WRAP = {0: 230}
+CARD_PX = 330
+MAP_VIEW_PX = (300, 230)
+CARD_BUTTONS = (
+    ("Guide me there", "The map and the overlay point at it until you get there, on whatever "
+                       "body it is; until then this window says where to go."),
+    ("Share", "Copies its share line - another EDSMT pastes it in."),
+    ("Mark depleted", "You worked it out: marked Depleted, and what it gave is kept."),
+    ("Copy position", "Copies its latitude and longitude."),
+    ("Delete", "Deletes it from your records, after asking."))
+
+
+def mark_tone(mark):
+    """The colour your own mark gives a row, read when asked so a theme
+    change is followed: up green, down red, none none."""
+    return {OM.UP: GREEN, OM.DOWN: RED}.get(mark)
+DEPOSITS_HINT = "Pick a site in the list to see its deposits here."
+DEPOSITS_NONE = ("No deposit marked in this location yet. A signal you logged is "
+                 "listed with what it offers; its deposits appear as you mark them.")
+DEPOSITS_FILTERED = "None of this site's deposits is one of the commodities ticked."
+
+
+def deposit_cells(row):
+    """One of sitetree.deposits() as table cells, in DEPOSIT_HEADERS order."""
+    spent = row["depleted"]
+    rigs = str(row["rigs"]) if row["rigs"] else "-"
+    if row["fit"]:
+        rigs += " (fit %d)" % row["fit"]
+    mined = "%dt" % row["mined"] if row["mined"] else "-"
+    mined_full = mined
+    if row["by"]:
+        mined_full += "\nby-products: " + ", ".join(
+            "%s %dt" % (name, count) for name, count in
+            sorted(row["by"].items(), key=lambda pair: -pair[1]))
+    left = STR.left_text(row["left"], spent, row.get("gave"))
+    basis = STR.left_basis(row["left"], row["deposit"])
+    if spent and row["holds"]:
+        low, high = row["holds"][0], row["holds"][1]
+        basis = "It gave %s when it was worked out." % (
+            "%dt" % high if low == high else "%d-%dt" % (low, high))
+    when, days = last_seen({"recorded": row["recorded"]})
+    far = row["metres"]
+    return [
+        (row["commodity"], None, row["commodity"].lower()),
+        (rigs, None, row["rigs"]),
+        (STR.where_text(far, row["bearing"], _metres), None, 1e12 if far is None else far),
+        (mined, None, row["mined"], mined_full),
+        (left, None, -1 if not row["left"] else row["left"][1],
+         left + ("\n" + basis if basis else "")),
+        (row["amount"] or "-", RED if spent else None, SV.amount_rank(row["amount"])),
+        (row["density"] or "-", None, SV.density_rank(row["density"])),
+        (when, None, days if days is not None else 1e9),
+    ]
+
+
+def deposits_heading(site, rows, every):
+    """The line over the deposits: which site, how many, the rigs to be had."""
+    where = "%s - location %s" % (site["body"], site["signal"]) if site["signal"] \
+        else "%s - no location logged" % site["body"]
+    count = "%d deposit%s" % (every, "" if every == 1 else "s")
+    if len(rows) != every:
+        count = "%d of %s" % (len(rows), count)
+    rigs = sum(row["rigs"] for row in rows if not row["depleted"])
+    return "%s: %s%s" % (where, count, ", %d rigs to be had" % rigs if rigs else "")
+
+
 def sites_matching(sites, text, commodities=()):
     """The sites whose system, body, signal or commodities hold `text`.
 
@@ -23444,9 +25684,16 @@ class SitesWindow(ToolWindow):
         tip(ctk.CTkButton(row, text="Copy all", width=100, height=32,
                       font=F_STRONG, **BTN_SECONDARY,
                       command=self.copy_all), "Copies the list as text, ready to paste into Discord.").pack(side="right")
-        tip(ctk.CTkButton(row, text="Refresh", width=100, height=32,
-                      font=F_STRONG, **BTN_PRIMARY,
-                      command=self.refresh), "Reads your finds again.").pack(side="left")
+        self.refresh_button = tip(ctk.CTkButton(row, text="Refresh", width=100, height=32,
+                                  font=F_STRONG, **BTN_PRIMARY,
+                                  command=self.refresh), "Reads your finds again.")
+        self.refresh_button.pack(side="left")
+        # 1.10042 (C8): Import in sight, on the top row.
+        self.import_button = tip(ctk.CTkButton(
+            row, text="Import...", width=100, height=32, font=F_STRONG,
+            **BTN_SECONDARY, command=self.open_import),
+            "Brings in a bookmark database, share lines, a survey CSV or a map file from another tool.")
+        self.import_button.pack(side="left", padx=(8, 0))
         ctk.CTkLabel(row, text="Filter", font=F_BODY,
                      text_color=DIM).pack(side="left", padx=(14, 6))
         self.filter_box = tip(ctk.CTkEntry(row, width=260, height=32, font=F_BODY,
@@ -23484,10 +25731,14 @@ class SitesWindow(ToolWindow):
             extra, text="Empty bin", width=100, height=30, font=F_STRONG,
             **BTN_DANGER, command=self.empty_bin),
             "Deletes everything in the bin for good, after asking.")
-        tip(ctk.CTkButton(extra, text="Import...", width=100, height=30,
-                          font=F_STRONG, **BTN_SECONDARY,
-                          command=self.open_import),
-            "Brings in a bookmark database, share lines, a survey CSV or a map file from another tool.").pack(side="right")
+        # 1.10042 (C10): where guiding to a deposit stands, and Stop guiding.
+        self.stop_button = tip(ctk.CTkButton(
+            extra, text="Stop guiding", width=110, height=30, font=F_STRONG,
+            **BTN_SECONDARY, command=self.stop_guiding),
+            "Lets the deposit go; the overlay points at the nearest again.")
+        self.guide_line = ctk.CTkLabel(extra, text="", font=F_SMALL, text_color=CYAN,
+                                       anchor="w", justify="left", wraplength=700)
+        self.guide_line.pack(side="left", fill="x", expand=True, padx=(14, 6))
 
         # 1.10035: the same body and signal filters as Where to land, judged
         # on the body each site is on.
@@ -23500,10 +25751,66 @@ class SitesWindow(ToolWindow):
         self.status = ctk.CTkLabel(self, text="", font=F_READOUT,
                                    text_color=DIM, anchor="w")
         self.status.pack(fill="x", padx=14, pady=(0, 4))
+        # 1.10042: the picked site's deposits, under the list. Packed before
+        # the list so the list is what gives way when the window is short.
+        self._site, self._deposit_rows = None, []
+        self._deposit_sort, self._deposit_reverse = None, False
+        self._place, self._from_places = None, False
+        self._open, self._card_row = set(), None
+        self.detail = ctk.CTkFrame(self, fg_color=PANEL, corner_radius=0,
+                                   height=DEPOSITS_PANE_PX)
+        self.detail.pack(side="bottom", fill="x", padx=12, pady=(0, 6))
+        self.detail.pack_propagate(False)
+        self.detail_title = ctk.CTkLabel(self.detail, text="", font=F_STRONG,
+                                         text_color=ORANGE, anchor="w")
+        self.detail_title.pack(fill="x", padx=12, pady=(8, 2))
+        # 1.10042 (C6): the location's map picture, at the right.
+        # A plain label: the picture is made for this window's own Tk.
+        mapbox = tk.Frame(self.detail, bg=VOID, width=MAP_VIEW_PX[0], height=MAP_VIEW_PX[1])
+        mapbox.pack(side="right", padx=(4, 8), pady=(0, 8))
+        mapbox.pack_propagate(False)
+        self.map_view = tk.Label(mapbox, text="", font=F_SMALL, fg=DIM, bg=VOID,
+                                 wraplength=MAP_VIEW_PX[0] - 20, justify="left")
+        self.map_view.pack(fill="both", expand=True)
+        self._map_image, self._map_key = None, None
+        # 1.10042 (C5): the deposit card, between the deposits and the map.
+        cardbox = ctk.CTkFrame(self.detail, fg_color="transparent", width=CARD_PX)
+        cardbox.pack(side="right", fill="y", padx=4, pady=(0, 8))
+        cardbox.pack_propagate(False)
+        self.card_title = ctk.CTkLabel(cardbox, text="", font=F_STRONG, text_color=TEXT,
+                                       anchor="w")
+        self.card_title.pack(fill="x")
+        self.card_text = ctk.CTkLabel(cardbox, text="", font=F_SMALL, text_color=DIM,
+                                      anchor="nw", justify="left", wraplength=CARD_PX - 10)
+        self.card_text.pack(fill="both", expand=True)
+        strip = ctk.CTkFrame(cardbox, fg_color="transparent")
+        strip.pack(fill="x", side="bottom")
+        self.card_buttons = []
+        for n, (text, note) in enumerate(CARD_BUTTONS):
+            button = tip(ctk.CTkButton(strip, text=text, width=10, height=26, font=F_SMALL_B,
+                                       **(BTN_DANGER if text == "Delete" else BTN_SECONDARY),
+                                       command=lambda t=text: self.card_action(t)), note)
+            button.grid(row=n // 3, column=n % 3, sticky="ew", padx=2, pady=2)
+            self.card_buttons.append(button)
+        for column in range(3):
+            strip.grid_columnconfigure(column, weight=1)
+        self.deposits = NativeTable(self.detail, copy=self.copy_text)
+        self.deposits.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+        self.deposits.on_pick = self._card_for
+        # 1.10042 (C1-C3): systems, bodies by ground, locations, beside the list.
+        middle = ctk.CTkFrame(self, fg_color="transparent")
+        middle.pack(fill="both", expand=True, padx=12, pady=(0, 6))
+        side = ctk.CTkFrame(middle, fg_color="transparent", width=PLACES_PX)
+        side.pack(side="left", fill="y", padx=(0, 6))
+        side.pack_propagate(False)
+        self.places = NativeTable(side, copy=self.copy_text)
+        self.places.pack(fill="both", expand=True)
+        self.places.on_pick = self._place_picked
         # 1.10040 (#308): on the toolkit's tree view.
-        self.scroller = NativeTable(self, copy=self.copy_text)
-        self.scroller.pack(fill="both", expand=True, padx=12, pady=(0, 6))
+        self.scroller = NativeTable(middle, copy=self.copy_text)
+        self.scroller.pack(side="left", fill="both", expand=True)
         self.table = self.scroller
+        self.scroller.on_pick = self._site_picked
         for sequence in ("<MouseWheel>", "<Shift-MouseWheel>",
                          "<Button-4>", "<Button-5>"):
             self.bind(sequence, self.scroller.wheel, add="+")
@@ -23559,13 +25866,436 @@ class SitesWindow(ToolWindow):
             shown = self._starred(shown)
             self._rows = self._sorted(shown)
             self._summarise(shown)
+            self.refresh_places()
+            self._paint_guide()
             if not self._rows:
                 table.show_empty(self._advice())
+                self._paint_deposits()
                 return
             self._draw_page()
             self.scroller.top()
+            self._paint_deposits()
         except Exception as exc:
             self.say("Could not draw the list: %s" % exc, RED)
+
+    # -- 1.10042: the picked site's deposits --------------------------------
+
+    def _site_picked(self, row):
+        """The list's picked row changed: its deposits go under the list."""
+        self._site, self._from_places = row, False
+        self._paint_deposits()
+
+    # -- 1.10042: the data window -------------------------------------------
+
+    def _picks(self):
+        return picks_of(self.commodity)
+
+    def _you(self):
+        try:
+            return self.app.where_you_are()
+        except Exception:
+            system, body = self._here()
+            return {"system": system, "body": body}
+
+    def _mark_of(self, system, body, location):
+        try:
+            return self.app.own_marks().mine(system, body, location)
+        except Exception:
+            return ""
+
+    def refresh_places(self):
+        """The systems, opened into bodies by ground, opened into locations
+        and their deposits, with the surveyed areas of an open body. Must
+        not raise."""
+        places = attr(self, "places")
+        if places is None:
+            return
+        try:
+            if attr(self, "_view", "sites") == "bin":
+                return places.show_empty("")
+            store, picks, rows = self.app.store, self._picks(), []
+            opened = attr(self, "_open", None) or set()
+            prices = attr(self, "_prices_now", None)
+            for system in STR.systems(store, picks):
+                rows.append(dict(system, kind="system"))
+                if ("s", SV.fold(system["system"])) not in opened:
+                    continue
+                for row in STR.ground_rows(STR.grounds(store, system["system"], picks,
+                                                       lookup=self.app.ground_of)):
+                    rows.append(row)
+                    if row["kind"] != "body" or ("b", SV.fold(row["system"]),
+                                                 SV.fold(row["body"])) not in opened:
+                        continue
+                    open_here = [key[3] for key in opened if key[0] == "l"
+                                 and key[1:3] == (SV.fold(row["system"]), SV.fold(row["body"]))]
+                    rows += STR.fold_rows(store, row["system"], row["body"], open_here, picks,
+                                          self._you(), prices, self.app.golden_radius())
+                    maps = []
+                    try:
+                        maps = self.app.survey_book.maps_on(row["system"], row["body"])
+                    except Exception:
+                        maps = []
+                    rows += [dict(area, kind="area", system=row["system"], body=row["body"])
+                             for area in STR.areas(maps)]
+            if not rows:
+                return places.show_empty("")
+            places.show(PLACES_HEADERS, rows, self._place_cells, actions=self._place_buttons,
+                        widths=PLACES_WRAP)
+        except Exception as exc:
+            self.say("Could not list your systems: %s" % exc, RED)
+
+    @staticmethod
+    def _key_of(row):
+        kind = row.get("kind")
+        if kind == "system":
+            return ("s", SV.fold(row["system"]))
+        if kind == "body":
+            return ("b", SV.fold(row["system"]), SV.fold(row["body"]))
+        if kind == "location":
+            return ("l", SV.fold(row["system"]), SV.fold(row["body"]), str(row["location"]))
+        return None
+
+    def _place_cells(self, row):
+        kind = row.get("kind")
+        mined = row.get("mined") or 0
+        cells_mined = ("%dt" % mined if mined else "-", None, mined)
+        rigs = row.get("rigs") or 0
+        cells_rigs = (str(rigs) if rigs else "-", None, rigs)
+        if kind == "system":
+            text = "%s %s - %d location%s, %d deposit%s" % (
+                "-" if self._key_of(row) in self._open else "+", row["system"],
+                row["locations"], "" if row["locations"] == 1 else "s",
+                row["deposits"], "" if row["deposits"] == 1 else "s")
+            return [(text, None, text), cells_rigs, cells_mined, ("", None, "")]
+        if kind == "ground":
+            return [("   " + row["ground"], AMBER, row["ground"]), ("", None, 0), ("", None, 0),
+                    ("", None, "")]
+        if kind == "body":
+            text = "      %s %s - %d location%s" % (
+                "-" if self._key_of(row) in self._open else "+", row["body"],
+                row["locations"], "" if row["locations"] == 1 else "s")
+            return [(text, None, text), cells_rigs, cells_mined, ("", None, "")]
+        if kind == "location":
+            mark = self._mark_of(row["system"], row["body"], row["location"])
+            text = "         %s %s%s" % ("-" if row["open"] else "+",
+                                         OM.LABELS[mark][0] + " " if mark else "", row["line"])
+            away = STR.away_text(row.get("away"), _metres)
+            return [(text, mark_tone(mark), text), cells_rigs, cells_mined,
+                    (away or "-", None, (row.get("away") or (None, None))[1] or 1e12)]
+        if kind == "area":
+            text = "         " + STR.area_line(row)
+            return [(text, None, text), ("", None, 0), ("", None, 0), ("", None, "")]
+        text = "            %s - %s" % (row["commodity"], STR.left_text(
+            row["left"], row["depleted"], row.get("gave")))
+        return [(text, RED if row["depleted"] else None, text), cells_rigs, cells_mined,
+                ("", None, "")]
+
+    def _place_buttons(self, row):
+        kind, buttons = row.get("kind"), []
+        key = self._key_of(row)
+        if key is not None:
+            buttons.append(("fold" if key in self._open else "open",
+                            lambda r=row: self.open_place(r), False))
+        if kind == "location":
+            buttons.append(("deposits", lambda r=row: self.show_place(
+                r["system"], r["body"], r["location"]), True))
+            buttons += self._own_mark_buttons(row["system"], row["body"], row["location"])
+            buttons.append(("map picture", lambda r=row: self.app.site_picture(
+                r["system"], r["body"], r["location"]), False))
+        elif kind == "area":
+            buttons.append(("picture", lambda r=row: self.app.site_picture(
+                r["system"], r["body"], area=r["map"]), True))
+        elif kind == "deposit":
+            buttons.append(("card", lambda r=row: self._show_deposit(r), True))
+        return buttons
+
+    def open_place(self, row):
+        """Open a system, body or location in the places list, or fold it."""
+        key = self._key_of(row)
+        if key is None:
+            return
+        if key in self._open:
+            self._open.discard(key)
+        else:
+            self._open.add(key)
+        self.refresh_places()
+
+    def _place_picked(self, row):
+        """A location or deposit picked in the places list: its deposits below."""
+        if not row or row.get("kind") not in ("location", "deposit"):
+            return
+        if row["kind"] == "location":
+            self.show_place(row["system"], row["body"], row["location"])
+        else:
+            self._show_deposit(row)
+
+    def _show_deposit(self, row):
+        deposit = row["deposit"]
+        self.show_place(deposit.get("system") or "", deposit.get("body") or "",
+                        row.get("location") or "")
+        table = self.deposits
+        for index in range(table.row_count()):
+            if table.payload(index)["id"] == row["id"]:
+                table.pick(index)
+                break
+
+    def show_place(self, system, body, location):
+        """The deposits of one location, its card and its map, below."""
+        self._place = {"system": system, "body": body, "signal": str(location or "")}
+        self._from_places = True
+        self._paint_deposits()
+
+    def _own_mark_buttons(self, system, body, location):
+        try:
+            book = self.app.own_marks()
+        except Exception:
+            return []
+        return [(text, lambda m=mark: self.press_mark(system, body, location, m), lit)
+                for text, mark, lit in OM.buttons(book, system, body, location)]
+
+    def press_mark(self, system, body, location, mark):
+        """Your own mark on a location: on, changed, or - pressed again - off."""
+        book = self.app.own_marks()
+        now = book.press(system, body, location, mark)
+        if not book.save():
+            self.say("Could not keep your mark on this PC.", RED)
+        self.say(("%s location %s marked %s." % (body, location or "-", OM.LABELS[now]))
+                 if now else "Your mark on %s location %s is off." % (body, location or "-"),
+                 GREEN)
+        self._paint()
+        return now
+
+    def _card_for(self, row):
+        """The deposit card for the deposit picked below. Must not raise."""
+        self._card_row = row
+        try:
+            if not row:
+                self.card_title.configure(text="")
+                self.card_text.configure(text="")
+                return
+            card = STR.card(row, self._you(), attr(self, "_prices_now", None), _metres)
+            self.card_title.configure(text=card["title"],
+                                      text_color=RED if card["depleted"] else TEXT)
+            self.card_text.configure(text="\n".join("%s: %s" % pair for pair in card["lines"]))
+        except Exception as exc:
+            self.say("Could not show that deposit: %s" % exc, RED)
+
+    def card_action(self, name):
+        """One of the card's buttons, on the deposit the card shows."""
+        row = attr(self, "_card_row", None)
+        if not row:
+            return self.say("Pick a deposit first.", AMBER)
+        deposit = row["deposit"]
+        if name == "Guide me there":
+            return self.guide_far(deposit)
+        if name == "Share":
+            return self.copy_text("the share line", share_line(deposit))
+        if name == "Copy position":
+            return self.copy_text("the position", "%s, %s" % (deposit.get("lat"), deposit.get("lon")))
+        if name == "Mark depleted":
+            return self.mark_depleted(deposit)
+        if name == "Delete":
+            return self.delete_deposit(deposit)
+        return None
+
+    def mark_depleted(self, deposit):
+        """The app's own MINED OUT, on this deposit, wherever it is."""
+        app = self.app
+        kept = attr(app, "selected", None)
+        try:
+            app.selected = deposit
+            app.mark_mined()
+            system, body = self._here()
+            if not (SV.fold(deposit.get("system")) == SV.fold(system)
+                    and SV.fold(deposit.get("body")) == SV.fold(body)):
+                app.selected = kept
+                app.on_pick(kept)
+        except Exception as exc:
+            return self.say("Could not mark it depleted: %s" % exc, RED)
+        self.refresh()
+        return True
+
+    def delete_deposit(self, deposit):
+        if not confirm(self, "Delete this deposit?",
+                       "Delete the %s deposit at %s location %s from your records?" % (
+                           deposit.get("commodity") or "unnamed", deposit.get("body") or "-",
+                           deposit.get("location") or "-")):
+            return False
+        try:
+            done = self.app.delete_deposit(deposit["id"])
+        except Exception as exc:
+            return self.say("Could not delete it: %s" % exc, RED)
+        self.refresh()
+        return done
+
+    def guide_far(self, deposit):
+        """Guide me there, to a deposit on any body."""
+        try:
+            words = self.app.guide_far(deposit)
+        except Exception as exc:
+            return self.say("Could not guide you there: %s" % exc, RED)
+        self._paint_guide(words)
+        return words
+
+    def stop_guiding(self):
+        try:
+            self.app.stop_far_guide()
+        except Exception as exc:
+            return self.say("Could not stop guiding: %s" % exc, RED)
+        self._paint_guide()
+
+    def _paint_guide(self, words=None):
+        """Where guiding stands, in plain words, and Stop guiding while it
+        is on. `words` - why there is no guidance - are said instead."""
+        try:
+            state, text = self.app.far_status()
+        except Exception:
+            state, text = "off", ""
+        try:
+            self.guide_line.configure(text=words if words and state == "off" else text)
+            self.stop_button.pack_forget()
+            if state != "off":
+                self.stop_button.pack(side="right", before=self.guide_line)
+        except Exception:
+            pass
+
+    def _paint_map(self, place):
+        """The location's map picture beside the card (C6). Must not raise."""
+        view = attr(self, "map_view")
+        if view is None:
+            return
+        try:
+            if place is None:
+                self._map_key = None
+                self._map_image = None
+                return view.configure(image="", text="")
+            store = self.app.store
+            key = (place["system"], place["body"], place["signal"], len(store.deposits),
+                   tuple(str(d.get("amount")) for d in store.at(place["system"], place["body"])))
+            if key == self._map_key:
+                return
+            self._map_key = key
+            ok, why = MI.pillow_status()
+            inputs = STR.picture_inputs(store, place["system"], place["body"],
+                                        place["signal"] or None) if ok else None
+            if inputs is None:
+                self._map_image = None
+                view.configure(image="", text=why if not ok else
+                               "No map to draw: nothing here has a position, or the body's "
+                               "size is not known yet.")
+                return
+            image, _scene = MI.render_map(
+                inputs["rows"], system=place["system"], body=place["body"],
+                signal=inputs["signal"], anchor=inputs["anchor"], survey=inputs["survey"],
+                version=SHOWN_VERSION, colour=colour_for, golden_m=self.app.golden_radius())
+            from PIL import ImageTk
+            image = image.copy()
+            image.thumbnail(MAP_VIEW_PX)
+            self._map_image = ImageTk.PhotoImage(image, master=view)
+            view.configure(image=self._map_image, text="")
+        except Exception as exc:
+            self._map_image = None
+            try:
+                view.configure(image="", text="The map could not be drawn: %s" % exc)
+            except Exception:
+                pass
+
+    def _paint_deposits(self):
+        """The deposits of the picked site, past the commodity filter.
+        Must not raise."""
+        table, title = attr(self, "deposits"), attr(self, "detail_title")
+        if table is None or title is None:
+            return
+        try:
+            listed = attr(self, "_rows", None) or []
+            if attr(self, "_from_places", False):
+                site = attr(self, "_place", None)
+            else:
+                site = attr(self, "_site", None)
+                if site is not None and not any(site is row for row in listed):
+                    site = None
+            if attr(self, "_view", "sites") == "bin" or site is None:
+                self._deposit_rows = []
+                title.configure(text="")
+                table.show_empty("" if not listed else DEPOSITS_HINT)
+                self._card_for(None)
+                self._paint_map(None)
+                return
+            store = self.app.store
+            wide = self.app.golden_radius()
+            tonnes = self.app.crowd_figures().tonnes
+            every = STR.deposits(store, site["system"], site["body"], site["signal"],
+                                 radius_m=wide, crowd=tonnes)
+            rows = STR.deposits(store, site["system"], site["body"], site["signal"],
+                                self._picks(), radius_m=wide, crowd=tonnes)
+            self._deposit_rows = self._deposits_sorted(rows)
+            title.configure(text=deposits_heading(site, rows, len(every)))
+            self._paint_map(site)
+            if not rows:
+                table.show_empty(DEPOSITS_FILTERED if every else DEPOSITS_NONE)
+                self._card_for(None)
+                return
+            table.show(DEPOSIT_HEADERS, self._deposit_rows, deposit_cells,
+                       actions=self._deposit_buttons,
+                       sort=(self._deposit_sort, self._deposit_reverse),
+                       on_sort=self._sort_deposits, tone_columns=DEPOSIT_TONE_COLUMNS)
+        except Exception as exc:
+            self.say("Could not list that site's deposits: %s" % exc, RED)
+
+    def _deposits_sorted(self, rows):
+        column = attr(self, "_deposit_sort", None)
+        if column is None:
+            return list(rows)       # as sitetree gives them: top patch first, worked out last
+        return sorted(rows, key=lambda row: EarningsWindow._cell(deposit_cells(row)[column])[2],
+                      reverse=bool(attr(self, "_deposit_reverse", False)))
+
+    def _sort_deposits(self, column):
+        if attr(self, "_deposit_sort", None) == column:
+            self._deposit_reverse = not self._deposit_reverse
+        else:
+            self._deposit_sort, self._deposit_reverse = column, False
+        self._paint_deposits()
+
+    def _deposit_buttons(self, row):
+        """A deposit's buttons. Guiding is only offered on the body you are
+        on: the map shows that body and no other."""
+        deposit = row["deposit"]
+        buttons = []
+        here = self._here()
+        if (here[1] and SV.fold(deposit.get("system")) == SV.fold(here[0])
+                and SV.fold(deposit.get("body")) == SV.fold(here[1])):
+            buttons.append(("guide me there", lambda d=deposit: self.guide_to(d), True))
+        elif not FG.why_not(deposit):
+            # 1.10042 (C10): on another body, kept until you get there.
+            buttons.append(("guide me there", lambda d=deposit: self.guide_far(d), True))
+        buttons += [
+            ("edit", lambda d=deposit: self.edit_deposit(d), False),
+            ("copy to share", lambda d=deposit: self.copy_text(
+                "the share line", share_line(d)), False),
+            ("copy position", lambda d=deposit: self.copy_text(
+                "the position", "%s, %s" % (d.get("lat"), d.get("lon"))), False)]
+        return buttons
+
+    def guide_to(self, deposit):
+        """Pick it on the map, as a click there would, and show the map."""
+        try:
+            self.app.pick_deposit(deposit)
+            self.app.show_map()
+        except Exception as exc:
+            self.say("Could not guide you there: %s" % exc, RED)
+
+    def edit_deposit(self, deposit):
+        """The app's own editor on that deposit; the lists are read again
+        when it closes, so a correction shows."""
+        try:
+            self.app.edit_deposit(deposit)
+            editor = attr(self.app, "_editor", None)
+            if editor is not None:
+                editor.bind("<Destroy>", lambda event, e=editor:
+                            self.after(50, self.refresh) if event.widget is e else None,
+                            add="+")
+        except Exception as exc:
+            self.say("Could not open that deposit: %s" % exc, RED)
 
     def _narrow(self, sites):
         """The sites past the body and signal filters (1.10035)."""
@@ -23578,10 +26308,19 @@ class SitesWindow(ToolWindow):
         here = self._here()
         prices = attr(self, "_prices_now", None)
         self.table.show(SITES_HEADERS, attr(self, "_rows", None) or [],
-                        lambda site: site_cells(site, here, prices),
+                        lambda site: self._site_cells(site, here, prices),
                         actions=self._buttons,
                         sort=(self._sort_column, self._sort_reverse),
                         on_sort=self.sort_by, widths=SITES_WRAP)
+
+    def _site_cells(self, site, here, prices):
+        """site_cells, with your own mark on the system cell (C12)."""
+        cells = site_cells(site, here, prices)
+        mark = self._mark_of(site["system"], site["body"], site["signal"])
+        if mark:
+            text, _colour, key = cells[0][:3]
+            cells[0] = (OM.LABELS[mark][0] + " " + text, mark_tone(mark), key)
+        return cells
 
     def _summarise(self, shown):
         sites = self._sites
@@ -23592,6 +26331,12 @@ class SitesWindow(ToolWindow):
             len(systems))
         if len(shown) != len(sites):
             text += "  %d match the filter." % len(shown)
+        try:
+            total = STR.totals_text(STR.totals(STR.systems(self.app.store, self._picks())))
+            if total:
+                text += "\n" + total
+        except Exception:
+            pass
         self.summary.configure(text=text)
 
     def _advice(self):
@@ -23621,6 +26366,12 @@ class SitesWindow(ToolWindow):
         # so it carries the good and bad marks too.
         if site.get("finds") and site.get("signal"):
             buttons += self.app.mark_buttons(site["system"], site["body"], site["signal"])
+        # 1.10042 (C12, C14): your own marks, kept on this PC, on any logged
+        # location; and a map picture of every site.
+        if site.get("signal"):
+            buttons += self._own_mark_buttons(site["system"], site["body"], site["signal"])
+        buttons.append(("map picture", lambda s=site: self.app.site_picture(
+            s["system"], s["body"], s["signal"] or None), False))
         return buttons
 
     def _sorted(self, sites):
@@ -23629,9 +26380,12 @@ class SitesWindow(ToolWindow):
         if column is None or not sites:
             # Where you are first, then the most recent: the body you are on
             # is the one you opened this to look at more often than not.
+            # 1.10042 (C12): your own up marks first, down marks last.
             at = (SV.fold(here[0]), SV.fold(here[1]))
-            return sorted(sites, key=lambda site: (SV.fold(site["system"]),
-                                                   SV.fold(site["body"])) != at)
+            mark_of = getattr(self, "_mark_of", None) or (lambda *_where: "")
+            return sorted(sites, key=lambda site: (
+                OM.rank(mark_of(site["system"], site["body"], site["signal"])),
+                (SV.fold(site["system"]), SV.fold(site["body"])) != at))
 
         def key(site):
             return EarningsWindow._cell(site_cells(site, here)[column])[2]
@@ -23908,6 +26662,11 @@ class ImportWindow(ctk.CTkToplevel):
             "A map file records where deposits are, not what they are. Pick one to take them as.")
         self.default_box.set(NO_COMMODITY_CHOICE)
         self.default_box.pack(side="left", padx=10)
+        self.pictures_box = tip(ctk.CTkCheckBox(
+            top, text="Copy its saved map pictures too (into your pictures folder)",
+            font=F_BODY, text_color=DIM),
+            "Off unless you tick it. The pictures are only for looking at.")
+        self.pictures_box.pack(anchor="w", padx=12, pady=(0, 6))
         buttons = ctk.CTkFrame(top, fg_color="transparent")
         buttons.pack(fill="x", padx=12, pady=(0, 10))
         tip(ctk.CTkButton(buttons, text="Preview", width=110, height=32,
@@ -23927,6 +26686,26 @@ class ImportWindow(ctk.CTkToplevel):
                                    anchor="w")
         self.status.pack(side="bottom", fill="x", padx=14, pady=(0, 10))
         self.bind("<Configure>", self._rewrap, add="+")
+        self.after(50, self.look_for_it)
+
+    def look_for_it(self):
+        """Look in the places such a database is kept and, if one is there,
+        read it for a preview (which changes nothing). Also says how many
+        bookmarks are new since the last import - offered, never imported."""
+        try:
+            found = IMP.IDB.locate()
+            if not found:
+                return None
+            self._path = found[0]["path"]
+            self.path_label.configure(text="found: " + os.path.basename(self._path))
+            offered = IMP.offer(os.path.join(DATA_DIR, IMP.STATE_FILE), found)
+            self.preview()
+            if offered:
+                self.say("%s - Import adds them after the preview." % offered["text"], AMBER)
+            return found[0]["path"]
+        except Exception as exc:
+            self.say("Could not look for it: %s" % exc, AMBER)
+            return None
 
     def _rewrap(self, event=None):
         try:
@@ -23987,19 +26766,21 @@ class ImportWindow(ctk.CTkToplevel):
                 self.result.configure(text=source.error, text_color=RED)
                 return self.say("Nothing to import.", AMBER)
             plan = IMP.make_plan(source, self.app.store, SAME_DEPOSIT_M,
-                                self._default())
+                                self._default(), marks=self.app.own_marks(),
+                                coverage=attr(self.app, "survey_book"))
             self._plan = plan
             lines = ["%s: %d row(s) read from %s." % (source.label, source.rows, where),
                      plan.preview()]
+            lines.extend(plan.details())
             lines.extend(source.notes)
             if plan.new:
                 lines.append(IMP.sharing_line(
                     getattr(self.app, "settings", None) or {},
                     attr(self.app, "community"), ALWAYS_SHARED))
             self.result.configure(text="\n".join(lines), text_color=TEXT)
-            self.import_button.configure(state="normal" if plan.new else "disabled")
-            return self.say("Preview only - nothing has been changed." if plan.new
-                            else "Nothing new to add.", DIM if plan.new else AMBER)
+            self.import_button.configure(state="normal" if plan.has_work else "disabled")
+            return self.say("Preview only - nothing has been changed." if plan.has_work
+                            else "Nothing new to add.", DIM if plan.has_work else AMBER)
         except Exception as exc:
             self.result.configure(text="", text_color=TEXT)
             return self.say("Could not read that: %s" % exc, RED)
@@ -24011,8 +26792,14 @@ class ImportWindow(ctk.CTkToplevel):
             return self.say("Preview something with new finds in it first.", AMBER)
         try:
             plan = IMP.make_plan(self._source, self.app.store, SAME_DEPOSIT_M,
-                                self._default())
-            result = IMP.apply(plan, self.app.store, DATA_DIR, SAME_DEPOSIT_M)
+                                self._default(), marks=self.app.own_marks(),
+                                coverage=attr(self.app, "survey_book"))
+            result = IMP.apply(
+                plan, self.app.store, DATA_DIR, SAME_DEPOSIT_M,
+                marks=self.app.own_marks(), coverage=attr(self.app, "survey_book"),
+                state_path=os.path.join(DATA_DIR, IMP.STATE_FILE),
+                pictures_folder=MI.pictures_dir(DATA_DIR),
+                copy_pictures=bool(self.pictures_box.get()))
         except Exception as exc:
             return self.say("Could not import that: %s" % exc, RED)
         line = IMP.summary(result, plan)
@@ -24025,6 +26812,7 @@ class ImportWindow(ctk.CTkToplevel):
         self.import_button.configure(state="disabled")
         self.result.configure(text=line, text_color=TEXT)
         self.say(line, GREEN)
+        self.app.speak("import_done")
         self.app.refresh_everything()
         try:
             sites = attr(self.app, "sites_window")
@@ -24134,6 +26922,11 @@ FROM_CHOICES = (("Any", None), ("25 Ly", 25.0), ("50 Ly", 50.0),
                 ("100 Ly", 100.0), ("200 Ly", 200.0), ("500 Ly", 500.0))
 POWER_ROW_CAP = 400
 POWER_TABLE_WRAP = {"Why": 380}
+# 1.10042: the Powerplay page's search runs on a thread of its own. This is
+# how often the window looks for its answer, in milliseconds, and what the
+# page says while it waits.
+POWER_POLL_MS = 40
+POWER_SEARCHING = "Searching your Powerplay record..."
 # Where to land, when it is asked about more than the system you are in.
 LAND_FAR_HEADERS = ("Body", "System", "Ly", "Ls", "Type", "Volcanism",
                     "Gravity", "Temp", "Signals", "Landable", "Mapped")
@@ -25052,26 +27845,59 @@ def land_far_cells(row):
     ]
 
 
-class GridTable:
-    """A small sortable table for the Powerplay window. Rows are lists of
-    cells in the form Find's tables use: (text, colour, sort key)."""
+class PagedTable:
+    """A sortable table a page at a time, for the Powerplay tool and the
+    Leaderboard (1.10042): twenty rows on the tree view the big tables use,
+    with Previous and Next under it when there is more than one page.
 
-    def __init__(self, scroller, copy=None):
-        self.scroller = scroller
-        self.table = scroller.inner
+    Until 1.10042 these were grids of labels - 300 systems were more than
+    two thousand widgets, all built again for every letter typed - and that
+    is what made the window stand still. Rows are lists of cells in the form
+    Find's tables use: (text, colour, sort key, whole text). Sorting and
+    turning a page draw from the rows in hand and ask nobody for anything.
+    `frame` is what the window packs; `table` is the tree view table."""
+
+    def __init__(self, master, copy=None, nouns=("row", "rows")):
         self.copy = copy
+        self.nouns = tuple(nouns)
+        self.frame = ctk.CTkFrame(master, fg_color="transparent", corner_radius=0)
+        self.pager = ctk.CTkFrame(self.frame, fg_color="transparent", corner_radius=0)
+        self.previous_button = tip(ctk.CTkButton(
+            self.pager, text="Previous", width=96, height=28, font=F_SMALL_B,
+            **BTN_SECONDARY, command=lambda: self.turn(-1)),
+            "The page before this one.")
+        self.previous_button.pack(side="left", padx=(0, 6), pady=(6, 0))
+        self.next_button = tip(ctk.CTkButton(
+            self.pager, text="Next", width=96, height=28, font=F_SMALL_B,
+            **BTN_SECONDARY, command=lambda: self.turn(1)),
+            "The page after this one.")
+        self.next_button.pack(side="left", padx=(0, 12), pady=(6, 0))
+        self.page_label = ctk.CTkLabel(self.pager, text="", font=F_SMALL,
+                                       text_color=DIM, anchor="w")
+        self.page_label.pack(side="left", pady=(6, 0))
+        self.table = NativeTable(self.frame, copy=copy)
+        self.table.pack(side="top", fill="both", expand=True)
         self.headers, self.rows, self.empty, self.wrap = [], [], "", {}
         self.tail = []
         self.sort_column, self.sort_reverse = None, False
+        self.page = 0
+        self.tone_columns, self.own = None, None
 
-    def show(self, headers, rows, empty="", wrap=None, tail=None):
+    def show(self, headers, rows, empty="", wrap=None, tail=None, fresh=True,
+             tone_columns=None, own=None):
         """`tail` is rows that are not results - "no price known" - kept
-        below the rest whichever way the table is sorted."""
+        below the rest whichever way the table is sorted. `fresh` is a new
+        search or a changed filter, which starts on page 1; the same rows
+        drawn again keep the page being read. `tone_columns` are the columns
+        whose colours colour the row, and `own` says of a row whether it is
+        the commander's own."""
         if list(headers) != self.headers:
             self.sort_column, self.sort_reverse = None, False
         self.headers, self.rows = list(headers), list(rows) + list(tail or [])
         self.tail = list(tail or [])
         self.empty, self.wrap = empty, dict(wrap or {})
+        self.tone_columns, self.own = tone_columns, own
+        self.page = TV.page_for(self.page, len(self.rows), fresh)
         self.paint()
 
     def ordered(self):
@@ -25088,50 +27914,65 @@ class GridTable:
         return sorted(rows, key=key, reverse=self.sort_reverse) + tail
 
     def sort_by(self, column):
+        """Sort every row on a column - the same column again turns it
+        round - and show the first page of the new order."""
         if self.sort_column == column:
             self.sort_reverse = not self.sort_reverse
         else:
             self.sort_column, self.sort_reverse = column, False
+        self.page = 0
+        self.paint()
+
+    def listed(self):
+        """Every row there is to page through, in the order on show."""
+        return self.ordered()[:POWER_ROW_CAP]
+
+    def shown(self):
+        """The rows of the page on show: twenty at most."""
+        return TV.page_rows(self.listed(), self.page)
+
+    def turn(self, step):
+        """Previous (-1) or Next (1): another page of the rows in hand."""
+        self.page = TV.clamp_page(self.page + int(step), len(self.listed()))
         self.paint()
 
     def paint(self):
-        for widget in self.table.winfo_children():
-            widget.destroy()
-        if not self.rows:
-            ctk.CTkLabel(self.table, text=self.empty, font=F_BODY,
-                         text_color=DIM, justify="left", wraplength=820).grid(
-                             row=0, column=0, padx=14, pady=18, sticky="w")
-            return
-        for column, name in enumerate(self.headers):
-            text = name
-            if column == self.sort_column:
-                text = "%s %s" % (name, "v" if self.sort_reverse else "^")
-            tip(ctk.CTkButton(self.table, text=text, font=F_SMALL_B,
-                              **BTN_HEADING, anchor="w", height=24, width=0,
-                              command=lambda c=column: self.sort_by(c)),
-                "Click to sort by this column; click again to turn it round.").grid(
-                    row=0, column=DATA_COLUMN_0 + column, padx=4, pady=4,
-                    sticky="w")
-        for index, cells in enumerate(self.ordered()[:POWER_ROW_CAP], start=1):
-            for column, cell in enumerate(cells):
-                text, colour, _key = EarningsWindow._cell(cell)
-                cell_label(self.table, index, column, text, colour,
-                           self.wrap.get(self.headers[column], CELL_WRAP),
-                           full=cell_full(cell))
-            if self.copy is not None:
-                line = self.line_of(cells)
-                row_buttons(self.table, index, [
-                    ("row", lambda t=line: self.copy("this row", t), False)])
+        rows = self.listed()
+        self.page = TV.clamp_page(self.page, len(rows))
+        if not rows:
+            self.table.show_empty(self.empty)
+        else:
+            self.table.show(self.headers, TV.page_rows(rows, self.page),
+                            lambda cells: cells,
+                            sort=(self.sort_column, self.sort_reverse),
+                            on_sort=self.sort_by, widths=self.wrap,
+                            tone_columns=self.tone_columns, own=self.own)
+            self.table.top()
+        self._paint_pager(len(rows))
+
+    def _paint_pager(self, total):
+        """Previous, Next and "Page 2 of 7 - 132 systems" - under the table
+        only when there is more than one page to turn."""
+        before, after = TV.page_turns(self.page, total)
+        self.page_label.configure(text=TV.page_line(self.page, total, *self.nouns))
+        self.previous_button.configure(state="normal" if before else "disabled")
+        self.next_button.configure(state="normal" if after else "disabled")
+        several = TV.page_count(total) > 1
+        if several and not self.pager.winfo_manager():
+            self.pager.pack(side="bottom", fill="x", before=self.table)
+        elif not several and self.pager.winfo_manager():
+            self.pager.pack_forget()
 
     @staticmethod
     def line_of(cells):
         return " | ".join(cell_full(c).replace("\n", " ") for c in cells)
 
     def as_text(self):
+        """Every row, whichever page is on show - what Copy all takes."""
         if not self.rows:
             return ""
         return "\n".join([" | ".join(self.headers)]
-                         + [self.line_of(c) for c in self.ordered()[:POWER_ROW_CAP]])
+                         + [self.line_of(c) for c in self.listed()])
 
 
 class PowerplayWindow(ToolWindow):
@@ -25143,7 +27984,14 @@ class PowerplayWindow(ToolWindow):
     system the journals have been in, whether the cargo will count at all,
     and the merits the hold should earn. Where to sell: for each commodity
     aboard, the five best payers or the five nearest buyers from the prices
-    already in hand. No server is asked for either."""
+    already in hand. No server is asked for either.
+
+    1.10042: both tables are a page of twenty rows on the tree view
+    (PagedTable). Where it counts searches the record on a thread of its
+    own (searchjob.py) and this window looks for the answer from a timer:
+    the page says it is searching, Refresh starts one search at a time, a
+    changed box or a changed record makes an answer still out be ignored,
+    and closing the window or its tab ends the search and the timer."""
 
     def __init__(self, app):
         super().__init__(app)
@@ -25155,6 +28003,10 @@ class PowerplayWindow(ToolWindow):
         self.configure(fg_color=VOID)
         self.transient(app)
         self._signature, self._page = None, 0
+        # The search of the record, the timer that looks for its answer, the
+        # rows of the last answer, and whether the next one starts on page 1.
+        self._search = SJ.SearchJob(self._read_counts, name="EDSMT Powerplay search")
+        self._poll_job, self._count_rows, self._fresh = None, [], True
 
         top = ctk.CTkFrame(self, fg_color=PANEL, corner_radius=0)
         top.pack(fill="x", padx=12, pady=(12, 6))
@@ -25167,8 +28019,8 @@ class PowerplayWindow(ToolWindow):
         bar.pack(fill="x", padx=12, pady=(0, 10))
         tip(ctk.CTkButton(bar, text="Copy all", width=100, height=32,
                           font=F_STRONG, **BTN_SECONDARY, command=self.copy_all),
-            "Copies the table on show as text, ready to paste into Discord."
-            ).pack(side="right")
+            "Copies the table on show as text - every page of it - ready to "
+            "paste into Discord.").pack(side="right")
         self.page_buttons = []
         for index, name in enumerate(("Where it counts", "Where to sell")):
             button = tip(ctk.CTkButton(
@@ -25180,10 +28032,11 @@ class PowerplayWindow(ToolWindow):
                      "is aboard.")
             button.pack(side="left", padx=(0, 8))
             self.page_buttons.append(button)
-        tip(ctk.CTkButton(bar, text="Refresh", width=100, height=32,
-                          font=F_STRONG, **BTN_SECONDARY,
-                          command=lambda: self.follow(force=True)),
-            "Reads the hold and the record again.").pack(side="left", padx=8)
+        self.refresh_button = tip(ctk.CTkButton(
+            bar, text="Refresh", width=100, height=32, font=F_STRONG,
+            **BTN_SECONDARY, command=self.refresh),
+            "Reads the hold and the record again.")
+        self.refresh_button.pack(side="left", padx=8)
 
         self.status = ctk.CTkLabel(self, text="", font=F_READOUT, text_color=DIM,
                                    anchor="w", justify="left", wraplength=900)
@@ -25219,7 +28072,7 @@ class PowerplayWindow(ToolWindow):
             variable=self.only_counts, onvalue=True, offvalue=False,
             font=F_BODY, checkbox_width=18, checkbox_height=18, border_width=2,
             fg_color=ORANGE, hover_color=AMBER, text_color=DIM,
-            command=self.repaint), "Hides systems where selling earns nothing."
+            command=self.only_changed), "Hides systems where selling earns nothing."
             ).pack(side="left", padx=(14, 0))
         self.headline = ctk.CTkLabel(self.count_page, text="", font=F_BODY,
                                      text_color=TEXT, anchor="w", justify="left",
@@ -25233,9 +28086,9 @@ class PowerplayWindow(ToolWindow):
                                       text_color=DIM, anchor="w", justify="left",
                                       wraplength=900)
         self.hold_line.pack(fill="x", padx=14, pady=(0, 6))
-        self.count_scroll = ScrollTable(self.count_page)
-        self.count_scroll.pack(fill="both", expand=True, padx=12, pady=(0, 6))
-        self.count_grid = GridTable(self.count_scroll, self.copy_text)
+        self.count_grid = PagedTable(self.count_page, self.copy_text,
+                                     ("system", "systems"))
+        self.count_grid.frame.pack(fill="both", expand=True, padx=12, pady=(0, 6))
 
         # Page two: where to sell.
         self.sell_page = ctk.CTkFrame(self, fg_color="transparent")
@@ -25255,14 +28108,13 @@ class PowerplayWindow(ToolWindow):
                                       text_color=DIM, anchor="w", justify="left",
                                       wraplength=900)
         self.sell_note.pack(fill="x", padx=14, pady=(0, 6))
-        self.sell_scroll = ScrollTable(self.sell_page)
-        self.sell_scroll.pack(fill="both", expand=True, padx=12, pady=(0, 6))
-        self.sell_grid = GridTable(self.sell_scroll, self.copy_text)
+        self.sell_grid = PagedTable(self.sell_page, self.copy_text)
+        self.sell_grid.frame.pack(fill="both", expand=True, padx=12, pady=(0, 6))
 
-        for scroll in (self.count_scroll, self.sell_scroll):
+        for grid in (self.count_grid, self.sell_grid):
             for sequence in ("<MouseWheel>", "<Shift-MouseWheel>",
                              "<Button-4>", "<Button-5>"):
-                self.bind(sequence, scroll.wheel, add="+")
+                self.bind(sequence, grid.table.wheel, add="+")
         self.bind("<Configure>", self._rewrap, add="+")
         self.show_page(0)
 
@@ -25299,24 +28151,102 @@ class PowerplayWindow(ToolWindow):
                 app.sell_signature(), self._page)
 
     def follow(self, force=False):
-        """Called from the app's poll: redraws only when something changed."""
+        """Called from the app's poll: redraws only when something changed.
+        A change the app's poll saw leaves the page being read where it is;
+        asked for by the commander (`force`), it starts on page 1."""
         try:
             sign = self.signature()
             if force or sign != self._signature:
                 self._signature = sign
-                self.repaint()
+                self.repaint(fresh=force)
         except Exception as exc:
             self.say("Could not read the Powerplay record: %s" % exc, RED)
 
-    def repaint(self):
+    def refresh(self):
+        """Refresh: the hold and the record read again. One search at a
+        time - pressed while one is out, it says so and starts nothing."""
+        if self._page == 0 and self._search.busy():
+            self.say(POWER_SEARCHING, DIM)
+            return False
+        self.follow(force=True)
+        return True
+
+    def repaint(self, fresh=True):
         try:
             self.paint_pledge()
             if self._page == 0:
-                self.paint_counts()
+                self.paint_counts(fresh)
             else:
-                self.paint_sell()
+                self.paint_sell(fresh)
         except Exception as exc:
             self.say("Could not draw that: %s" % exc, RED)
+
+    # -- the search of the record, off this window's thread (1.10042) ----------
+
+    @staticmethod
+    def _read_counts(book, origin, here):
+        """What selling in each remembered system would do. Run by the
+        search on a thread of its own: the record is safe across threads,
+        and nothing here touches a widget or the app."""
+        return PW.system_rows(book, origin, here)
+
+    def searching(self):
+        """A search is out and its answer has not been drawn."""
+        return self._search.busy()
+
+    def _watch(self):
+        """Look for the search's answer shortly - one timer, however often
+        this is asked."""
+        if self._poll_job is not None or attr(self, "_gone", False):
+            return
+        try:
+            self._poll_job = self.after(POWER_POLL_MS, self._poll)
+        except Exception:
+            self._poll_job = None
+
+    def _poll(self):
+        """On this window's thread: draw the answer if it is in, and look
+        again only while one is still awaited. Never raises."""
+        self._poll_job = None
+        try:
+            answer = self._search.poll()
+            if answer is not None:
+                self._take_counts(*answer)
+            if self._search.busy():
+                self._watch()
+        except Exception as exc:
+            self.say("Could not draw that: %s" % exc, RED)
+
+    def _take_counts(self, ok, value):
+        """The search's answer: the rows, or what went wrong in words. A
+        failure is said on the page and what was on show stays."""
+        if not ok:
+            return self.say("Could not search your Powerplay record: %s" % value, RED)
+        self._count_rows = list(value or [])
+        fresh, self._fresh = self._fresh, False
+        self.draw_counts(fresh)
+
+    def only_changed(self):
+        """Only where it counts hides or shows rows already in hand: page 1
+        again, and no new search."""
+        try:
+            self.draw_counts(fresh=True)
+        except Exception as exc:
+            self.say("Could not draw that: %s" % exc, RED)
+
+    def destroy(self):
+        """Closing the window or its tab ends the search and the timer that
+        looks for its answer."""
+        search = attr(self, "_search")
+        if search is not None:
+            search.close()
+        job, self._poll_job = attr(self, "_poll_job"), None
+        if job is not None:
+            try:
+                self.after_cancel(job)
+            except Exception:
+                pass
+        super().destroy()
 
     def order_changed(self):
         """Best price or Nearest is an order of its own: a column sort
@@ -25362,7 +28292,10 @@ class PowerplayWindow(ToolWindow):
     def _goal_colour(goal):
         return GREEN if goal in PW.COUNTS else AMBER if goal == PW.UNKNOWN else DIM
 
-    def paint_counts(self):
+    def paint_counts(self, fresh=True):
+        """The lines over the table, drawn now; the table's rows are
+        searched for off this thread and drawn when they arrive
+        (draw_counts)."""
         app = self.app
         book = attr(app, "powerbook")
         if book is None:
@@ -25392,7 +28325,19 @@ class PowerplayWindow(ToolWindow):
         self.hold_line.configure(text="Mined in %s%s.  %s" % (
             origin, "" if view["origin_known"] else " (assumed - no mining of "
             "this hold in your record)", "   ".join(lines)))
-        rows = PW.system_rows(book, view["origin"], app.star_position())
+        # 1.10042: an answer still out is for what was asked before, so it
+        # is ignored when it comes and this search is run in its place.
+        self._fresh = bool(fresh) or self._fresh
+        if self._search.ask_again(book, view["origin"], app.star_position()):
+            self.say(POWER_SEARCHING, DIM)
+            self._watch()
+
+    def draw_counts(self, fresh=True):
+        """The rows of the last answer into the table, twenty a page."""
+        book = attr(self.app, "powerbook")
+        if book is None:
+            return
+        rows = self._count_rows
         if self.only_counts.get():
             rows = [r for r in rows if r["goal"] in PW.COUNTS]
         cells = []
@@ -25413,11 +28358,13 @@ class PowerplayWindow(ToolWindow):
             SYSTEM_HEADERS, cells,
             "No systems in your Powerplay record yet. Jump around with EDSMT "
             "running, or let it finish reading your older journals.",
-            POWER_TABLE_WRAP)
-        self.say("%d of %d systems shown." % (len(cells), len(book.systems))
+            POWER_TABLE_WRAP, fresh=fresh,
+            # A row is green where selling counts, amber where it is not known.
+            tone_columns=(SYSTEM_HEADERS.index("Selling here"),))
+        self.say("%d of %d systems listed." % (len(cells), len(book.systems))
                  if book.systems else "", DIM)
 
-    def paint_sell(self):
+    def paint_sell(self, fresh=True):
         app = self.app
         by = "distance" if self.order_box.get() == "Nearest" else "price"
         groups = app.sell_side(by)
@@ -25455,7 +28402,11 @@ class PowerplayWindow(ToolWindow):
         self.sell_grid.show(
             SELL_HEADERS, cells,
             "Nothing aboard to sell. Fill the hold, then come back." if not groups
-            else "No prices.", {"Station": 220}, tail=unpriced)
+            else "No prices.", {"Station": 220}, tail=unpriced, fresh=fresh,
+            # A row takes its colour from what selling there does for the
+            # pledge; the "no price known" lines are amber.
+            tone_columns=(SELL_HEADERS.index("Station"),
+                          SELL_HEADERS.index("Powerplay")))
         self.sell_note.configure(
             text="Five %s of each commodity aboard, from the markets you have "
                  "read and the community map's last answers. Demand 0 is never "
@@ -25495,7 +28446,8 @@ class LeaderboardWindow(ToolWindow):
     time, by points or by Powerplay merits from mined cargo, with totals per
     Power. Everyone who shares a find is on it until they press Leave; Join
     and Leave are here as well as in Settings. The working-out is in
-    board.py; this is the window."""
+    board.py; this is the window. 1.10042: the table is on the tree view,
+    twenty commanders a page (PagedTable)."""
 
     def __init__(self, app):
         super().__init__(app)
@@ -25578,12 +28530,13 @@ class LeaderboardWindow(ToolWindow):
         self.powers = ctk.CTkLabel(self, text="", font=F_BODY, text_color=TEXT,
                                    anchor="w", justify="left", wraplength=900)
         self.powers.pack(side="bottom", fill="x", padx=14, pady=(0, 4))
-        self.scroll = ScrollTable(self)
-        self.scroll.pack(fill="both", expand=True, padx=12, pady=(0, 6))
-        self.grid_table = GridTable(self.scroll, self.copy_text)
+        # 1.10042: on the tree view, twenty commanders a page.
+        self.grid_table = PagedTable(self, self.copy_text,
+                                     ("commander", "commanders"))
+        self.grid_table.frame.pack(fill="both", expand=True, padx=12, pady=(0, 6))
         for sequence in ("<MouseWheel>", "<Shift-MouseWheel>",
                          "<Button-4>", "<Button-5>"):
-            self.bind(sequence, self.scroll.wheel, add="+")
+            self.bind(sequence, self.grid_table.table.wheel, add="+")
         self.bind("<Configure>", self._rewrap, add="+")
         self.paint_you()
         self.ask()
@@ -25657,7 +28610,10 @@ class LeaderboardWindow(ToolWindow):
             ("Nobody has Powerplay merits from mining for %s yet." if merits else
              "Nobody has points for %s yet. Points come from finds, first finds "
              "on a body, confirmed sites, worked-out reports and rig layouts.")
-            % LB.season_words(data.get("season"), None, data.get("week_start"))))
+            % LB.season_words(data.get("season"), None, data.get("week_start"))),
+            # No row takes a colour from its figures; the commander's own
+            # row - its cells are in the accent - is marked as theirs.
+            tone_columns=(), own=lambda cells: bool(cells) and cells[0][1] == ORANGE)
         self.paint_you()
         self.say("Up to date.", GREEN)
         return True

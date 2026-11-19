@@ -9,12 +9,17 @@ What it keeps is a short, honest record on each deposit:
 
 and a few rules over those two dates:
 
-  * a deposit marked depleted stays depleted for HOLD_DAYS (14);
-  * after that its card says "depleted 14 days - recheck due";
+  * a deposit marked depleted stays marked: nothing lifts the mark on a
+    timer (1.10042). It is lifted when you say it has grown back, or when the
+    first tonne of its own commodity is refined at it;
+  * until the community's reports have measured how long deposits take to
+    come back, a fortnight (HOLD_DAYS) after it was worked out its card says
+    "depleted 14 days - recheck due"; once they have, it is their time
+    (regrow_days), and the card says "may be back - needs a check";
   * if you look, and mark it still depleted with nothing refined there since,
     the FIRST date is kept, the look is added to the list, and the card says
-    "depleted 15 days - recheck in 7 days" - the mark comes off
-    RECHECK_DAYS (7) after that look;
+    "depleted 15 days - recheck in 7 days"; RECHECK_DAYS (7) after that look
+    it is due again;
   * tonnes refined at it since it was marked mean it has grown back, so the
     next time it is worked out that is a new depletion, with a new first date.
 
@@ -35,6 +40,10 @@ DAY = 86400.0
 
 # How close counts as having arrived at a deposit, for "it is due a look".
 ARRIVED_M = 100.0
+
+# What a deposit reads once the time the community's reports measured has
+# passed since it was worked out.
+BACK_TEXT = "may be back - needs a check"
 
 _NOTE_DATE = re.compile(r"(\d{2})/(\d{2})/(\d{4})(?:\s+(\d{2}):(\d{2}))?")
 
@@ -108,19 +117,23 @@ def refined_since(deposit):
     return own > 0
 
 
-def standing(deposit, now=None):
+def standing(deposit, now=None, regrow_days=None):
     """Where a deposit is in its timeline.
 
     state is one of
       intact   - not marked depleted
       unknown  - depleted, but nothing says since when
-      fresh    - depleted less than HOLD_DAYS ago
-      look     - HOLD_DAYS or more, not looked at: "recheck due"
-      waiting  - looked at, still depleted, the mark comes off later
-      expired  - looked at, and RECHECK_DAYS have passed: the mark is due off
+      fresh    - depleted, and not yet the time to look
+      look     - HOLD_DAYS or more (or RECHECK_DAYS after a look) with no
+                 measured time: "recheck due"
+      back     - the time the community's reports measured (`regrow_days`)
+                 has passed: "may be back - needs a check"
+      waiting  - looked at and still depleted, inside the days after the look
       regrown  - tonnes refined at it since it was marked
 
     `due` is True when a look is what it needs. `text` is the card's line.
+    The mark itself is never taken off by this: only by a person, or by the
+    first tonne refined.
     """
     now = time.time() if now is None else now
     out = {"state": "intact", "age_days": None, "due": False, "text": "",
@@ -145,15 +158,18 @@ def standing(deposit, now=None):
         out["look_age_days"] = at
         left = last + RECHECK_DAYS * DAY - now
         if left <= 0:
-            out.update(state="expired", text="confirmed depleted at %d days; the mark "
-                       "is due to come off" % at)
+            out.update(state="look", due=True,
+                       text="confirmed depleted at %d days - recheck due" % at)
         else:
             days = int(math.ceil(left / DAY))
             out.update(state="waiting", off_in_days=days,
                        text="depleted %d days - recheck in %d days"
                        % (at, days))
         return out
-    if age >= HOLD_DAYS:
+    if regrow_days and (now - first) >= float(regrow_days) * DAY:
+        out.update(state="back", due=True, text=BACK_TEXT)
+        return out
+    if not regrow_days and age >= HOLD_DAYS:
         out.update(state="look", due=True,
                    text="depleted %d days - recheck due" % age)
         return out
@@ -162,13 +178,13 @@ def standing(deposit, now=None):
     return out
 
 
-def card_lines(deposit, now=None):
+def card_lines(deposit, now=None, regrow_days=None):
     """The lines a deposit's card adds, [] for one that is not depleted."""
-    info = standing(deposit, now)
+    info = standing(deposit, now, regrow_days)
     return [info["text"]] if info["text"] else []
 
 
-def mark_changes(deposit, now=None):
+def mark_changes(deposit, now=None, regrow_days=None):
     """The fields to write when a deposit is marked depleted, and what that was.
 
     Returns (changes, kind). kind is
@@ -183,10 +199,8 @@ def mark_changes(deposit, now=None):
     first = first_date(deposit) if depleted(deposit) else None
     if first is not None and not refined_since(deposit):
         seen = [at for at in looks(deposit) if at >= first]
-        age = int((now - first) // DAY)
-        # A look already made and still inside its week is not a new look:
-        # marking it again must not push the mark's expiry further out.
-        due = (seen[-1] + RECHECK_DAYS * DAY <= now) if seen else age >= HOLD_DAYS
+        # A look already made and still inside its week is not a new look.
+        due = standing(deposit, now, regrow_days)["due"]
         if due:
             seen.append(now)
         return ({"amount": "Depleted", "depleted_at": stamp(first),
@@ -195,10 +209,10 @@ def mark_changes(deposit, now=None):
     return {"amount": "Depleted", "depleted_at": stamp(now), "rechecks": ""}, "new"
 
 
-def still_depleted_changes(deposit, now=None):
+def still_depleted_changes(deposit, now=None, regrow_days=None):
     """What the card's "still depleted" button writes: a look, with its note."""
     now = time.time() if now is None else now
-    changes, kind = mark_changes(deposit, now)
+    changes, kind = mark_changes(deposit, now, regrow_days)
     if kind == "recheck":
         first = first_date(deposit)
         age = int((now - first) // DAY) if first else 0
@@ -218,35 +232,19 @@ def set_active_changes(deposit, now=None):
                                    "Regrown" + was)}
 
 
-def expiry_changes(deposit, now=None):
-    """The fields to write when a looked-at deposit's mark comes off, or None.
-
-    The amount goes back to unread. The first date and the looks stay, so
-    the history is not lost."""
+def first_tonne_changes(deposit, now=None):
+    """The first tonne of its own commodity refined at a deposit marked
+    worked out: it has come back. The mark off, the amount unread (blank)
+    until it is read again, the dates cleared, and the note says why."""
     info = standing(deposit, now)
-    if info["state"] != "expired":
-        return None
-    return {"amount": "",
+    was = "" if info["age_days"] is None else " (worked out %d d ago)" % info["age_days"]
+    return {"amount": "", "depleted_at": "", "rechecks": "",
             "notes": SV.stamp_note((deposit or {}).get("notes"),
-                                   "Depleted mark came off after the look at "
-                                   "%d d" % info["look_age_days"])}
-
-
-def expire_marks(store, now=None):
-    """Take the mark off every deposit that is due it. How many came off."""
-    count = 0
-    for row in list(getattr(store, "deposits", None) or []):
-        changes = expiry_changes(row, now)
-        if changes:
-            row.update(changes)
-            count += 1
-    if count:
-        store.save_deposits()
-    return count
+                                   "Regrown - the first tonne refined" + was)}
 
 
 def due_near(store, system, body, lat, lon, radius_m, now=None,
-             within_m=ARRIVED_M):
+             within_m=ARRIVED_M, regrow_days=None):
     """The deposits on this body that need a look and are within reach of
     (lat, lon), nearest first, as (deposit, metres)."""
     try:
@@ -257,7 +255,8 @@ def due_near(store, system, body, lat, lon, radius_m, now=None,
         return []
     out = []
     for row in store.at(system, body):
-        if not standing(row, now)["due"]:
+        days = regrow_days(row.get("commodity")) if callable(regrow_days) else regrow_days
+        if not standing(row, now, days)["due"]:
             continue
         try:
             metres = SV.surface_range_m(lat, lon, float(row["lat"]),

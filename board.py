@@ -29,7 +29,7 @@ LIVE_PAGE = "https://edsmt.radioraxxla.com/live"
 # well as on the server so the window can say it before any answer comes.
 POINTS = {"find": 10, "complete": 2, "first_body": 15, "verified": 5,
           "report": 3, "agreed": 2, "layout": 5, "confirmed_old": 3,
-          "regrowth": 5}
+          "regrowth": 5, "update": 2, "mined_out": 3}
 
 MONTHS = ("January", "February", "March", "April", "May", "June", "July",
           "August", "September", "October", "November", "December")

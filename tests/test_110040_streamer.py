@@ -306,9 +306,12 @@ def _on():
     check("the map's title has no name in it", SYSTEM not in app.plan.caption and BODY not in app.plan.caption
           and "a body" in app.plan.caption, app.plan.caption)
     app.say("Arrived at %s - 3 mining locations" % BODY)
-    pump(1)
-    check("nor the status line", app.status.cget("text") == "Arrived at a body - 3 mining locations",
-          app.status.cget("text"))
+    # Read what the line shows AT ONCE, with no loop run in between (#373):
+    # pumping first let a background line - "Leaderboard: could not reach",
+    # on a machine with no route to the map - replace it, and the check then
+    # raced. This check is about the names say() hides, not about that line.
+    at_once = app.status.cget("text")
+    check("nor the status line", at_once == "Arrived at a body - 3 mining locations", at_once)
 
     class Overlay:
         showing = True

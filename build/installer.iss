@@ -11,7 +11,7 @@
 
 #define AppName    "EDSMT"
 #define AppLong    "EDSMT - Surface Mining Survey"
-#define AppVersion "1.10041"
+#define AppVersion "1.20000"
 #define ExeName    "EDSMT.exe"
 
 [Setup]
@@ -24,7 +24,7 @@ AppVerName={#AppLong} {#AppVersion}
 AppPublisher=Radio Raxxla
 AppCopyright=Copyright (C) 2026 Radio Raxxla. GPL-3.0-only
 AppPublisherURL=https://www.radioraxxla.com/EDSMT
-VersionInfoVersion=1.10041.0.0
+VersionInfoVersion=1.20000.0.0
 
 ; Per-user by default: no admin prompt, which is one fewer thing to explain
 ; and one fewer reason for somebody to give up on the download.
@@ -97,6 +97,8 @@ Source: "..\README.md"; DestDir: "{app}"; Flags: ignoreversion isreadme
 Source: "..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 ; The licences of what EDSMT is built with (1.10041).
 Source: "..\THIRD-PARTY-NOTICES.txt"; DestDir: "{app}"; Flags: ignoreversion
+; The voices, sounds and logos are Radio Raxxla's, not GPL (1.2).
+Source: "..\ASSETS-LICENCE.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\EDSMT"; Filename: "{app}\{#ExeName}"
@@ -165,6 +167,7 @@ begin
   DeleteFile(Base + 'README.md');
   DeleteFile(Base + 'LICENSE');
   DeleteFile(Base + 'THIRD-PARTY-NOTICES.txt');
+  DeleteFile(Base + 'ASSETS-LICENCE.txt');
   DeleteFile(Base + 'JOURNAL-NOTES.md');
   DeleteFile(Base + 'unins000.exe');
   DeleteFile(Base + 'unins000.dat');

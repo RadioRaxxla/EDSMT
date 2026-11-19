@@ -1,0 +1,29 @@
+EDSMT - what the GPL does not cover
+
+EDSMT's program code is free software under the GNU General Public License,
+version 3 only (GPL-3.0-only); see LICENSE. The files listed below are not
+part of that licence.
+
+Copyright (C) 2026 Radio Raxxla. All rights reserved:
+
+  - the voice recordings in voice\ - Celestia, the Ship computer, the Flight
+    controller and Radio Raxxla on-air - and the words written for them;
+  - the sounds in sounds\;
+  - the EDSMT logo and badges (images\edsmt-badge-256.png,
+    images\edsmt-badge-512.png, the icon) and the names Radio Raxxla, EDSMT
+    and Celestia as they are used for this program and its voices.
+
+They are licensed to you only for use within EDSMT as Radio Raxxla
+publishes it. You may not copy them out of EDSMT, sell or share them, put
+them in any other program, voice pack, video, stream or other product, or
+use them to clone, train or imitate a voice, in whole or in part, without
+written permission from Radio Raxxla.
+
+A copy or fork of EDSMT's code must leave them out, or ask Radio Raxxla
+first: radioraxxla.com/EDSMT.
+
+Not claimed here: the fonts in fonts\ are third-party and keep their own
+licences (see THIRD-PARTY-NOTICES.txt). The pictures of the Rhino
+(images\rhino-about.png, images\rhino-banner.png) are screenshots of Elite
+Dangerous; Elite Dangerous and the Rhino are (C) Frontier Developments plc.
+EDSMT is not affiliated with Frontier Developments.

@@ -30,8 +30,25 @@ if not exist ".venv\Scripts\python.exe" (
     %PY% -m venv .venv
     if errorlevel 1 goto FAIL
     ".venv\Scripts\python.exe" -m pip install --upgrade pip --quiet --disable-pip-version-check
+)
+
+rem The setup is brought up to date whenever requirements.txt changes: one
+rem made before Pillow was in it never got it, and map pictures and session
+rem cards were off. requirements.installed is the list it was last made with.
+set "UPDATE="
+if not exist ".venv\requirements.installed" set "UPDATE=1"
+if not defined UPDATE (
+    fc /b requirements.txt ".venv\requirements.installed" >nul 2>&1
+    if errorlevel 1 set "UPDATE=1"
+)
+if defined UPDATE (
+    echo   Bringing the setup up to date...
     ".venv\Scripts\python.exe" -m pip install -r requirements.txt --quiet --disable-pip-version-check
-    if errorlevel 1 goto FAIL
+    if errorlevel 1 (
+        echo   Could not update the setup - running it as it is.
+    ) else (
+        copy /y requirements.txt ".venv\requirements.installed" >nul
+    )
 )
 
 echo   Running.

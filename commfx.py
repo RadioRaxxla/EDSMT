@@ -4,7 +4,10 @@ A voice with comms - Celestia - is recorded clean, once. Before a line is
 played this gives it the sound of the link it comes over:
 
     ship   the cockpit's comms: a clean link, gently band-limited, a little
-           compression, a faint carrier hiss, a tone at key-up and key-off
+           compression, a faint carrier hiss, a tone at key-up and key-off.
+           By the ship's size (1.10042): ship_small, a tight cockpit,
+           narrower and a little boxy; ship (medium), as before; ship_large,
+           a bridge, wider with a little room in it
     srv    the Rhino's short-range set: narrower, grittier, more hiss, a
            chirp in and a burst of static out
     foot   the suit radio inside a helmet: close and a little boxy, soft
@@ -24,7 +27,25 @@ import struct
 import wave
 
 VERSION = 1
-PLACES = ("ship", "srv", "foot")
+# "ship" is a medium ship - and any ship whose size is not known - so the
+# lines worked out before ship sizes stay good in the cache.
+PLACES = ("ship", "srv", "foot", "ship_small", "ship_large")
+# The game's ship symbols (as uichrome.SHIP_NAMES has them) by landing pad.
+SHIP_SIZES = {
+    "adder": "small", "cobramkiii": "small", "cobramkiv": "small", "cobramkv": "small",
+    "diamondback": "small", "diamondbackxl": "small", "dolphin": "small", "eagle": "small",
+    "empire_courier": "small", "empire_eagle": "small", "hauler": "small",
+    "sidewinder": "small", "viper": "small", "viper_mkiv": "small", "vulture": "small",
+    "asp": "medium", "asp_scout": "medium", "corsair": "medium",
+    "federation_dropship": "medium", "federation_dropship_mkii": "medium",
+    "federation_gunship": "medium", "ferdelance": "medium", "independant_trader": "medium",
+    "krait_light": "medium", "krait_mkii": "medium", "mamba": "medium", "mandalay": "medium",
+    "python": "medium", "python_nx": "medium", "type6": "medium", "type8": "medium",
+    "typex": "medium", "typex_2": "medium", "typex_3": "medium",
+    "anaconda": "large", "belugaliner": "large", "cutter": "large", "empire_trader": "large",
+    "federation_corvette": "large", "orca": "large", "panthermkii": "large",
+    "type7": "large", "type9": "large", "type9_military": "large",
+}
 OUT_RATE = 22050
 # Silence before the voice (the key-up tone sits in it) and after it (the
 # key-off tone and the tail).
@@ -44,6 +65,21 @@ PRESETS = {
              "noise": ("pink", 0.006, None, None),
              "tone_in": ("sine", 2525.0, 0.12, 0.10),
              "tone_out": ("sine", 2475.0, 0.12, 0.08)},
+    # A tight cockpit: a narrower band, a touch boxy, pressed a little harder.
+    "ship_small": {"hp": 280.0, "lp": 4200.0, "comp": (-22.0, 3.5, 0.004, 0.070),
+                   "clip": ("tanh", 0.80), "crush": None, "echo": None,
+                   "peak": (1500.0, 1.4, 2.0), "gain": 1.12,
+                   "noise": ("pink", 0.008, None, None),
+                   "tone_in": ("sine", 2700.0, 0.10, 0.10),
+                   "tone_out": ("sine", 2650.0, 0.10, 0.08)},
+    # A bridge: a wider band, gentler, and a little room in the sound.
+    "ship_large": {"hp": 160.0, "lp": 5600.0, "comp": (-20.0, 2.5, 0.006, 0.100),
+                   "clip": ("tanh", 0.90), "crush": None,
+                   "echo": (0.85, 0.30, ((0.018, 0.18), (0.031, 0.10))),
+                   "peak": None, "gain": 1.08,
+                   "noise": ("pink", 0.005, None, None),
+                   "tone_in": ("sine", 2300.0, 0.14, 0.10),
+                   "tone_out": ("sine", 2250.0, 0.14, 0.08)},
     "srv": {"hp": 380.0, "lp": 3100.0, "comp": (-24.0, 5.0, 0.003, 0.060),
             "clip": ("atan", 0.60), "crush": (10, 0.25), "echo": None, "peak": None,
             "gain": 1.25,
@@ -63,6 +99,13 @@ PRESETS = {
 def clean_place(place):
     text = str(place or "").strip().lower()
     return text if text in PLACES else "ship"
+
+
+def ship_place(ship_type):
+    """The place for a ship by its size: ship_small, ship (medium, and any
+    ship not known) or ship_large. The journal's symbol, any case."""
+    size = SHIP_SIZES.get(str(ship_type or "").strip().lower())
+    return {"small": "ship_small", "large": "ship_large"}.get(size, "ship")
 
 
 # -- reading and writing -------------------------------------------------------

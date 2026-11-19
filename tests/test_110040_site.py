@@ -60,7 +60,7 @@ check("the not-affiliated line", "Not affiliated with Frontier Developments plc"
 print("== what the page says ==")
 check("Windows and Linux", re.search(r"Free &middot; Windows and Linux &middot;", page))
 check("a Linux download that goes to the release page",
-      "github.com/TheAnnouncer/EDSMT/releases/latest" in page and "Linux" in block('<div class="ctas">', "</div>"))
+      "github.com/RadioRaxxla/EDSMT/releases/latest" in page and "Linux" in block('<div class="ctas">', "</div>"))
 check("Linux in the system requirements", re.search(r'<span class="k">Linux</span>', page))
 check("cloud desktops named, game-only streaming services said plainly",
       "Maximum Settings" in page and "GeForce NOW" in page)

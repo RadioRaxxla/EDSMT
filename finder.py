@@ -673,7 +673,9 @@ def body_count_line(shown, total, counts):
 MODES = (("sites", "Sites"), ("intact", "Still there"), ("deposits", "Deposits"),
          ("prices", "Sell prices"), ("bodies", "Mining bodies"),
          # 1.10040 (#231): where to mine and where to sell for a Powerplay goal.
-         ("powerplay", "Powerplay"))
+         ("powerplay", "Powerplay"),
+         # 1.10042: known deposits nobody has confirmed for a while, nearest first.
+         ("due", "Due a check"))
 DEFAULT_MODE = "sites"
 
 _FIND_FILTERS = ("commodity", "min_rigs", "min_types", "seen", "within", "place",
@@ -690,12 +692,14 @@ MODE_FILTERS = {
     # Powerplay's own five (ppsearch), and the boxes it shares with the rest.
     "powerplay": ("pp_power", "pp_goal", "pp_contested", "commodity", "within", "pad",
                   "demand", "price_age", "pp_state", "pp_show"),
+    # Due a check is read from your own records, narrowed by commodity.
+    "due": ("commodity",),
 }
 
 # Which search a table belongs to, by the kind of table the window draws.
 KIND_MODES = {"sites": "sites", "intact": "intact", "search": "deposits",
               "sell": "prices", "market": "prices", "published": "prices",
-              "bodies": "bodies", "powerplay": "powerplay"}
+              "bodies": "bodies", "powerplay": "powerplay", "due": "due"}
 
 # The filter each part of a find_spec comes from, and that part switched off.
 SPEC_FILTERS = {"from_ly": "from", "to_ly": "within", "pad": "pad",

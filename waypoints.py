@@ -37,6 +37,16 @@ FILE_NAME = "waypoints.json"
 FILE_VERSION = 1
 
 
+def is_landed(point):
+    """The waypoint at the survey centre - where the signal was logged on
+    touching down - shown on the map as LANDED (1.10042). The ship may have
+    left it since."""
+    try:
+        return int(point.get("ring", -1)) == 0 and float(point.get("radius_m") or 0.0) == 0.0
+    except (AttributeError, TypeError, ValueError):
+        return False
+
+
 def arrive_radius(value=None):
     """The arrival radius in metres from a setting, kept to something sane."""
     try:
@@ -112,7 +122,7 @@ class Guide:
     """Where the commander is in the waypoints of one body's survey."""
 
     def __init__(self, system, body, key, waypoints=None, index=0,
-                 paused=False, done=False, skipped=None):
+                 paused=False, done=False, skipped=None, landed_said=False):
         self.system = str(system or "")
         self.body = str(body or "")
         self.key = key
@@ -122,6 +132,9 @@ class Guide:
         self.done = bool(done) or not self.waypoints
         # Numbers of the waypoints left out with the skip key, not driven to.
         self.skipped = sorted(set(int(n) for n in skipped or []))
+        # Whether "waypoint one is where you landed" has been said for this
+        # survey (1.10042): once, never at every start.
+        self.landed_said = bool(landed_said)
         self.updated = time.time()
 
     # -- where it is ---------------------------------------------------------
@@ -140,6 +153,38 @@ class Guide:
         """"WP 3/12" for the current waypoint."""
         point = self.current()
         return "WP %d/%d" % (point["n"], self.total) if point else ""
+
+    def landed(self):
+        """The LANDED waypoint, where you touched down, or None."""
+        return next((p for p in self.waypoints if is_landed(p)), None)
+
+    def remove(self, n):
+        """Take waypoint `n` out of the survey - one added by mistake, or
+        the landing spot - wherever it is in the list. The rest are numbered
+        on from 1, the one being driven to stays the one being driven to
+        (or, if it was this one, the next), and it is not counted as
+        skipped. False when there is no such waypoint."""
+        at = next((i for i, p in enumerate(self.waypoints) if p["n"] == n), None)
+        if at is None:
+            return False
+        self.updated = time.time()
+        renumber = {}
+        kept = []
+        for index, point in enumerate(self.waypoints):
+            if index == at:
+                continue
+            renumber[point["n"]] = len(kept) + 1
+            kept.append(dict(point, n=len(kept) + 1))
+        self.skipped = sorted(renumber[s] for s in self.skipped if s in renumber)
+        self.waypoints = kept
+        if not self.done and at < self.index:
+            self.index -= 1
+        if not self.done and self.index >= len(self.waypoints):
+            self.index = len(self.waypoints)
+            self.done = True
+        if not self.waypoints:
+            self.index, self.done = 0, True
+        return True
 
     # -- moving on and back --------------------------------------------------
 
@@ -220,7 +265,7 @@ class Guide:
         return {"system": self.system, "body": self.body, "key": list(self.key),
                 "waypoints": self.waypoints, "index": self.index,
                 "paused": self.paused, "done": self.done, "skipped": self.skipped,
-                "updated": self.updated}
+                "landed_said": self.landed_said, "updated": self.updated}
 
     @classmethod
     def from_dict(cls, data):
@@ -246,7 +291,8 @@ class Guide:
         except (TypeError, ValueError):
             skipped = []
         guide = cls(data.get("system"), data.get("body"), key, points, index,
-                    data.get("paused"), data.get("done"), skipped)
+                    data.get("paused"), data.get("done"), skipped,
+                    data.get("landed_said"))
         guide.index = min(guide.index, len(points))
         try:
             guide.updated = float(data.get("updated") or guide.updated)

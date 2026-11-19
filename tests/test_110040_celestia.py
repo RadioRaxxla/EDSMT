@@ -43,8 +43,8 @@ def check(label, cond, extra=""):
 print("== Celestia is the main voice ==")
 check("she is the first theme", VO.THEMES[0] == ("celestia", "Celestia"), VO.THEMES[:2])
 check("and a new install's", VO.DEFAULT_THEME == "celestia")
-check("the Ship computer and the others are still there",
-      [k for k, _n in VO.THEMES[1:]] == ["ship_computer", "flight_controller", "on_air"], VO.THEMES)
+check("the Ship computer and the others are still there, and Windows voice after them",
+      [k for k, _n in VO.THEMES[1:]] == ["ship_computer", "flight_controller", "on_air", "windows"], VO.THEMES)
 check("a theme that is not one is Celestia", VO.clean_theme("bogus") == "celestia")
 missing = [i for i in VO.LINES if not VO.line_text(i, "celestia")]
 check("every line has her words", not missing, missing[:5])
@@ -79,6 +79,31 @@ class Game:
 check("from the game's state", VO.place_from(Game(in_srv=True)) == "srv"
       and VO.place_from(Game(on_foot=True)) == "foot" and VO.place_from(None) == "ship"
       and VO.place_from(object()) == "ship")
+
+print("== in the ship, by its size (1.10042) ==")
+check("a small ship", VO.place_of(ship_type="sidewinder") == "ship_small"
+      and VO.place_of(ship_type="CobraMkIII") == "ship_small", VO.place_of(ship_type="CobraMkIII"))
+check("a medium ship sounds as the ship always did", VO.place_of(ship_type="python") == "ship"
+      and VO.place_of(ship_type="krait_mkii") == "ship")
+check("a large ship", VO.place_of(ship_type="panthermkii") == "ship_large"
+      and VO.place_of(ship_type="Cutter") == "ship_large")
+check("a ship not known yet is a medium one", VO.place_of(ship_type="something_new") == "ship"
+      and VO.place_of(ship_type="") == "ship")
+check("the Rhino and on foot are not changed by the ship", VO.place_of(in_srv=True, ship_type="cutter") == "srv"
+      and VO.place_of(on_foot=True, ship_type="sidewinder") == "foot")
+check("from the game's state, with its ship", VO.place_from(Game(), ship_type="type9") == "ship_large")
+
+
+class Ship(Game):
+    ship_type = "anaconda"
+
+
+check("the ship the journal says", VO.place_from(Ship()) == "ship_large"
+      and VO.place_from(Ship(in_srv=True)) == "srv")
+import uichrome as UIC   # noqa: E402
+unsized = sorted(set(UIC.SHIP_NAMES) - set(CFX.SHIP_SIZES))
+check("every ship the app knows by name has a size", not unsized, unsized)
+check("sizes are small, medium or large only", set(CFX.SHIP_SIZES.values()) == {"small", "medium", "large"})
 
 print("== the recording to play ==")
 root = os.path.join(TMP, "app")
@@ -138,7 +163,19 @@ check("no line names CMDR",
       not any("CMDR" in VO.script(i, "celestia", take=t) for i in VO.TAKES for t in range(1, 4)))
 
 print("== the comm sound ==")
-check("three places", CFX.PLACES == ("ship", "srv", "foot") and CFX.clean_place("x") == "ship")
+check("five places: three ship sizes, the Rhino and on foot",
+      CFX.PLACES == ("ship", "srv", "foot", "ship_small", "ship_large") and CFX.clean_place("x") == "ship"
+      and set(CFX.PRESETS) == set(CFX.PLACES))
+check("the voice and the comm sound know the same places", set(VO.PLACES) == set(CFX.PLACES))
+check("the medium ship is the ship of before, so its cache stays good", CFX.VERSION == 1
+      and CFX.PRESETS["ship"]["hp"] == 220.0 and CFX.PRESETS["ship"]["lp"] == 4800.0)
+_small, _mid, _large = (CFX.apply(SPEECH, 22050, p, seed=1) for p in ("ship_small", "ship", "ship_large"))
+check("the three ship sizes do not sound the same", _small != _mid and _large != _mid and _small != _large)
+check("a large ship's bridge has room in it: its line rings on", CFX.PRESETS["ship_large"]["echo"]
+      and not CFX.PRESETS["ship_small"]["echo"])
+check("a small cockpit is narrower than a large bridge",
+      CFX.PRESETS["ship_small"]["lp"] < CFX.PRESETS["ship"]["lp"] < CFX.PRESETS["ship_large"]["lp"]
+      and CFX.PRESETS["ship_small"]["hp"] > CFX.PRESETS["ship"]["hp"] > CFX.PRESETS["ship_large"]["hp"])
 for place in CFX.PLACES:
     out = CFX.apply(SPEECH, 22050, place, seed=1)
     rms, peak = CFX.level(out)
@@ -233,8 +270,18 @@ for spec_name in ("EDSMT.spec", "EDSMT-onefile.spec"):
           'os.path.join(ROOT, "voice", "**", "*.wav")' in spec and "recursive=True" in spec)
 if os.path.isdir(pack):
     have = sorted(n[:-4] for n in os.listdir(pack) if n.endswith(".wav"))
-    check("Celestia: every line and every one of her own recorded", have == sorted(VO.TAKES),
-          (sorted(set(VO.TAKES) - set(have))[:5], sorted(set(have) - set(VO.TAKES))[:5]))
+    # 1.10042: her later takes of a line (<id>_2.wav, <id>_3.wav) sit beside
+    # it, each one listed with its words; nothing else is in the folder.
+    listed = set(VO.TAKES) | set(VO.TAKE_WORDS["celestia"])
+    # Her building blocks for distances and directions: all of them or none,
+    # never some (a number said half by her and half by Windows).
+    blocks = set(VO.VB.ALL_BLOCKS)
+    there = set(have) & blocks
+    check("Celestia: her building blocks are all there or none is", there in (set(), blocks),
+          sorted(blocks - there)[:5])
+    listed |= there
+    check("Celestia: every line and every one of her own recorded, her later takes too, nothing spare",
+          have == sorted(listed), (sorted(listed - set(have))[:5], sorted(set(have) - listed)[:5]))
     want = {os.path.join("chatty", "%s-%d.wav" % (line_id, n))
             for line_id, takes in VO.TAKES.items() for n in range(2, len(takes) + 1)}
     want |= {os.path.join("short", "%s.wav" % line_id) for line_id, words in VO.SHORT.items()

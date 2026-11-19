@@ -12,7 +12,7 @@ itself is thin wiring in edsmt.py.
 
 # Where the useful links go. HEAD rather than a branch name, so a renamed
 # branch never breaks the button.
-REPO_URL = "https://github.com/TheAnnouncer/EDSMT"
+REPO_URL = "https://github.com/RadioRaxxla/EDSMT"
 GUIDE_URL = REPO_URL + "/blob/HEAD/docs/GUIDE.md"
 ISSUES_URL = REPO_URL + "/issues"
 CHANGELOG_URL = REPO_URL + "/blob/HEAD/CHANGELOG.md"
@@ -45,6 +45,14 @@ COMMUNITY_LINKS = (
      "Sign in with Discord for a member page of your own - any commander, "
      "in the squadron or not."),
 )
+
+# A way to support EDSMT that costs a commander nothing extra: the author's
+# affiliate link to HCS Voice Packs. Wherever the button is, HCS_WORDS is in
+# sight beside it - never only in the note when the mouse rests on it.
+HCS_URL = "https://www.hcsvoicepacks.com?sca_ref=4748595.5BP6LlL1r0&sca_source=EDSMT"
+HCS_LABEL = "HCS Voice Packs"
+HCS_WORDS = ("Voice packs for Elite Dangerous. Affiliate link: Radio Raxxla "
+             "earns a commission at no extra cost to you.")
 
 # The call-out near the top. Most questions after an update are answered by
 # a setting, so it is said loudly, once per version.
@@ -82,17 +90,26 @@ FALLBACK = {"PANEL": "#15100b", "RULE": "#3d2404", "ORANGE": "#ff7a18",
             "TEXT": "#e9dccd"}
 
 
+def _shown(version):
+    """1.20000 as 1.2, as the patch notes head it (edonline.shown_version)."""
+    text = str(version or "").strip()
+    head, dot, tail = text.rpartition(".")
+    if not dot or not head.isdigit() or not tail.isdigit() or (int(head), int(tail)) < (1, 20000):
+        return text
+    return "%s.%s" % (head, tail.rstrip("0") or "0")
+
+
 def whats_new(notes, version, most=WHATS_NEW_MOST):
     """The headlines of `version` in the patch notes: the bold lead of each
     point under its "## version" heading, in order, at most `most`. A version
     that is not there, or no notes at all, is an empty list."""
-    wanted = "## " + str(version or "").strip()
+    wanted = {"## " + str(version or "").strip(), "## " + _shown(version)}
     found, inside = [], False
     for line in str(notes or "").splitlines():
         if line.startswith("## "):
             if inside:
                 break
-            inside = line.strip() == wanted
+            inside = line.strip() in wanted
             continue
         if not inside or not line.startswith("- **"):
             continue
@@ -155,6 +172,69 @@ def place_over(app_box, size, screen):
     x = max(0, min(x, screen_w - width))
     y = max(0, min(y, screen_h - height))
     return x, y
+
+
+# The tour's card (1.10042): this far from the control it is about, and from
+# the edges of the screen.
+TOUR_GAP = 16
+TOUR_UNDER = 12
+TOUR_SPARE_RIGHT = 8
+TOUR_SPARE_FOOT = 48
+
+
+def tour_place(card, target, app, screen, keep_clear=()):
+    """(x, y) for the tour's card.
+
+    `card` is its (width, height); `target` the control the step is about as
+    (x, y, width, height) on the screen, or None; `app` the app window the
+    same way; `screen` (width, height); `keep_clear` more boxes the card
+    must not cover - the buttons the step's words name.
+
+    Against the app window first and the screen second: beside the control
+    (right, then under, left, above) wherever the whole card fits inside the
+    window without covering the control or anything in `keep_clear`. A
+    control with no room beside it - the map fills the window's side - has
+    the card inside the window, in the control's top right corner. With no
+    control it is across the middle of the app, a third of the way down."""
+    w, h = int(card[0]), int(card[1])
+    ax, ay, aw, ah = (int(v) for v in app)
+    sw, sh = int(screen[0]), int(screen[1])
+
+    def on_screen(x, y):
+        return (max(0, min(int(x), sw - w - TOUR_SPARE_RIGHT)),
+                max(0, min(int(y), sh - h - TOUR_SPARE_FOOT)))
+
+    if target is None:
+        return on_screen(ax + (aw - w) // 2, ay + (ah - h) // 3)
+    # The room there is: the app window, where it is on the screen.
+    left, top = max(ax, 0), max(ay, 0)
+    right = min(ax + aw, sw - TOUR_SPARE_RIGHT)
+    bottom = min(ay + ah, sh - TOUR_SPARE_FOOT)
+    boxes = [tuple(int(v) for v in target)] + [tuple(int(v) for v in box)
+                                               for box in keep_clear or () if box]
+    ux0 = min(box[0] for box in boxes)
+    uy0 = min(box[1] for box in boxes)
+    ux1 = max(box[0] + box[2] for box in boxes)
+    uy1 = max(box[1] + box[3] for box in boxes)
+    tx, ty = boxes[0][0], boxes[0][1]
+
+    def along_x(x):
+        return max(left, min(x, right - w))
+
+    def along_y(y):
+        return max(top, min(y, bottom - h))
+
+    def fits(x, y):
+        in_room = x >= left and y >= top and x + w <= right and y + h <= bottom
+        clear = x >= ux1 or x + w <= ux0 or y >= uy1 or y + h <= uy0
+        return in_room and clear
+
+    for x, y in ((ux1 + TOUR_GAP, along_y(ty)), (along_x(tx), uy1 + TOUR_UNDER),
+                 (ux0 - TOUR_GAP - w, along_y(ty)), (along_x(tx), uy0 - TOUR_UNDER - h)):
+        if fits(x, y):
+            return int(x), int(y)
+    return on_screen(along_x(min(ux1, right) - w - TOUR_GAP),
+                     along_y(max(uy0, top) + TOUR_GAP))
 
 
 def donate_buttons(donate_url, kofi_url):

@@ -34,9 +34,11 @@ import os
 import planview as PV
 import planring as PRG
 import markerfilter as MF
+import mapkey as MK
 import warp as WP
 import gametheme as GT
 import streamer as ST
+import statuslines as SL
 
 # The window is filled with this colour and Windows is told to treat it as
 # transparent, which is how a rectangular window becomes a floating HUD.
@@ -160,6 +162,11 @@ PLAN_VIEW_CAP_M = 1500.0
 # The zoom key steps the scope through these (1.10035): 1x is the scope as
 # it fits itself; 2x and 4x show that much less ground, round the Rhino.
 ZOOM_STEPS = (1, 2, 4)
+# The zoom key as it ships, for the scope's hint (1.10042).
+ZOOM_KEY = "ALT+-"
+# Closer than this to the survey centre and the scope does not say how far
+# it is: you are on it.
+CENTRE_NEAR_M = 50.0
 # What the new scope layers are drawn in. Fixed, like GREEN_OK and ALARM_RED
 # below: a gold circle and a red ring have to read as those on every theme.
 GOLD = "#ffd24a"
@@ -2405,7 +2412,8 @@ class Overlay:
 
     def draw(self, rows, heading, note="", body="", location="", site=None,
              survey=None, rigs=None, guide=None, target=None, only=None,
-             cargo=None, hazard=None, rigplan=None, wing=None, zone=None):
+             cargo=None, hazard=None, rigplan=None, wing=None, zone=None,
+             lines=None):
         """Redraw. Called from the same poll that moves the map.
 
         `rows` are Survey.near rows, measured from the commander. The three
@@ -2425,7 +2433,7 @@ class Overlay:
         self._last_draw = ((rows, heading, note), dict(
             body=body, location=location, site=site, survey=survey, rigs=rigs,
             guide=guide, target=target, cargo=cargo, hazard=hazard,
-            rigplan=rigplan, wing=wing, zone=zone))
+            rigplan=rigplan, wing=wing, zone=zone, lines=lines))
         # The survey area, if one is set: drawn by the scope and summed up
         # by STATUS. Kept rather than threaded through every draw call.
         self._survey = survey if isinstance(survey, dict) else None
@@ -2454,6 +2462,8 @@ class Overlay:
         # finds, worked out by the app from your own and shared finds.
         # STATUS names it in place of the SITE label.
         self._zone = zone if isinstance(zone, dict) else None
+        # The extra STATUS lines (1.10042): SRV fuel, t/h, merits.
+        self._lines = lines if isinstance(lines, dict) else None
         # The signal being worked, and nothing else. A body can hold finds
         # thousands of kilometres apart, and the boxes used to list and point
         # at all of them: a scope sized to 50 km with 9,698 km arrows at its
@@ -2983,6 +2993,28 @@ class Overlay:
                 ("route", format_range(PV.drive_route(rows)["total_m"])),
             ])
 
+        # The extra lines (1.10042): a row each under the readout when the
+        # box has room for all of them. When it has not - the box as it
+        # comes, or a large text size - they are drawn as one short line
+        # lower down, so a line that is switched on is never left off
+        # without a word.
+        extra = SL.rows(getattr(self, "_lines", None))
+        brief = ("", False)
+        if extra:
+            first = top + em(48) + (2 * em(17) if readout_end else 0)
+            room = (int((height - em(34) - first) // em(17)) + 1
+                    if height >= top + em(78) else 0)
+            if room >= len(extra):
+                readout_end = text_box("M", 10)[1] / 2.0 + readout_rows(
+                    canvas, 6, first, width - 12, extra)
+            else:
+                brief = SL.compact(getattr(self, "_lines", None))
+        # Whether the bottom row will be there, known before the second line
+        # is laid out: with no bottom row the short line takes the key hint's
+        # place on the second line.
+        low_row = height - em(6) - em(12) >= max(top + em(30) + em(8),
+                                                 readout_end + 2)
+
         nearest = self.ranked(rows, heading, limit=1)
         planned = getattr(self, "_plan", None) or {}
         pin = planned.get("next_pin") if planned.get("near") else None
@@ -3014,6 +3046,17 @@ class Overlay:
                 format_range(rigs.get("range_m")))
             right_colour, right_font = (RED if rigs.get("far") else AMBER,
                                         ("Consolas", 9, "bold"))
+        elif brief[0] and not low_row:
+            # No bottom row to carry the short line: it has the key hint's
+            # place, cut to what the left-hand line leaves.
+            right_colour, right_font = (RED if brief[1] else AMBER,
+                                        ("Consolas", 9, "bold"))
+            need = text_box(left[0], left[2])[0] if left else 0
+            right = fit_text(brief[0], max(0, width - 18 - need), 9)
+            if len(right) < 6:
+                right = ""
+            else:
+                brief = ("", False)
         else:
             right_colour, right_font = FAINT, ("Consolas", 9)
             # The key hint gives way first: down to the two keys a new
@@ -3057,7 +3100,23 @@ class Overlay:
         survey = getattr(self, "_survey", None)
         swept = survey.get("percent") if survey else None
         zone = getattr(self, "_zone", None)
-        if side_room and zone and str(zone.get("signal") or "").strip():
+        if side_room and brief[0]:
+            # The short line of SRV fuel, t/h and merits has the bottom-left
+            # place while there is something to say, cut to the room left of
+            # the swept figure and of the hold's own line.
+            room_left = width - 12
+            if swept is not None:
+                room_left -= text_box("AREA SWEPT 100%", 8)[0] + 8
+            hold = self._cargo_text() if bottom_room and not carded else ""
+            if hold:
+                room_left = min(room_left, width / 2.0
+                                - text_box(hold, 9)[0] / 2.0 - 12)
+            canvas.create_text(6, base, anchor="sw",
+                               fill=RED if brief[1] else AMBER,
+                               font=("Consolas", 8, "bold"),
+                               text=fit_text(brief[0], max(0, room_left), 8),
+                               tags=("lines",))
+        elif side_room and zone and str(zone.get("signal") or "").strip():
             # The location you are in and what is known to be in it, cut to
             # the room left of the swept figure.
             text = ("LOC %s  %s" % (zone["signal"], zone.get("summary") or "")).strip()
@@ -3215,12 +3274,13 @@ class Overlay:
                            text="\u25b2 SIGNAL POINT %s" % (location or "-"))
         self._brackets(width, height)
 
-    def key_hint(self, short=False, essential=False):
+    def key_hint(self, short=False, essential=False, more=False):
         """What to press, in the keys this commander actually bound.
 
         Short on the status strip, which is narrow by design; spelled out
         everywhere there is room for it. essential is the site and deposit
-        keys alone, for a box too narrow for the rest.
+        keys alone, for a box too narrow for the rest. more (1.10042) adds
+        the scope's zoom key and the rig planner's, for the scope's foot.
         """
         if not self.locked:
             return "unlocked - drag me"
@@ -3237,6 +3297,9 @@ class Overlay:
             wanted = [pair for pair in wanted if pair[1] != "BORDER"]
         if essential:
             wanted = [pair for pair in wanted if pair[1] in ("SITE", "DEP", "DEPOSIT")]
+        if more:
+            wanted += [(key_words(self.settings.get("hotkey_zoom", ZOOM_KEY)), "ZOOM"),
+                       (key("hotkey_trace"), "PLAN")]
         return "  ".join("%s %s" % (bound, what) for bound, what in wanted if bound)
 
     # -- the radar -------------------------------------------------------
@@ -3370,6 +3433,7 @@ class Overlay:
         self._guidance_marks(viewport, plan, origin)
         self._scanner(viewport, plan)
         self._planning_ring(viewport, plan, origin)
+        self._deposit_links(viewport, plan)
         if patch:
             self._patch(patch)
         if rich and (not patch or (rich["x"], rich["y"]) != (patch["x"], patch["y"])):
@@ -3380,6 +3444,9 @@ class Overlay:
         self._commander(viewport, plan)
         self._radar_me(plan)
         self._scope_labels(plan)
+        # Last, and only where it touches nothing: a find's name matters
+        # more than the scale bar does.
+        self._scale_bar(viewport)
         self._header(width, plan, found, centred, body, rows)
         self._footer(width, height, plan, note)
         self._brackets(width, height)
@@ -3424,6 +3491,16 @@ class Overlay:
                                    fill=colour, font=("Consolas", 6, "bold"),
                                    tags=("wingmark",))
                 self._taken().append((x - 6, y - 6, x + 6, y + 6))
+            # 1.10042: a rig they have collected stays in the game until you
+            # leave the planet; kept here too, dashed and empty.
+            for rig in mate.get("collected") or []:
+                x, y = viewport.to_canvas(rig["east"] - origin[0],
+                                          rig["north"] - origin[1])
+                if not (0 <= x <= viewport.width and 0 <= y <= viewport.height):
+                    continue
+                canvas.create_rectangle(x - 5, y - 5, x + 5, y + 5, outline=colour,
+                                        width=1, dash=(2, 2),
+                                        tags=("wingmark", "wingcollected"))
             x, y = viewport.to_canvas(mate["east"] - origin[0],
                                       mate["north"] - origin[1])
             if not (0 <= x <= viewport.width and 0 <= y <= viewport.height):
@@ -3509,14 +3586,72 @@ class Overlay:
     #    radar ----------------------------------------------------------------
 
     def scope_zoom(self):
-        """The scope's zoom step: 1, 2 or 4."""
-        step = getattr(self, "_zoom_step", 1)
+        """The scope's zoom step: 1, 2 or 4. The one it was left on at the
+        last run until the key is pressed (1.10042)."""
+        step = getattr(self, "_zoom_step", None)
+        if step is None:
+            try:
+                step = int((self.settings or {}).get("scope_zoom") or 1)
+            except (TypeError, ValueError, AttributeError):
+                step = 1
         return step if step in ZOOM_STEPS else 1
 
     def set_zoom(self, step):
-        """Put the scope on a step. Anything that is not one is 1x."""
+        """Put the scope on a step, and write it down in the settings so a
+        restart keeps it. Anything that is not a step is 1x."""
         self._zoom_step = step if step in ZOOM_STEPS else 1
+        if isinstance(self.settings, dict):
+            self.settings["scope_zoom"] = self._zoom_step
         return self._zoom_step
+
+    def _layer(self, name):
+        """Is this layer of the map and the scope drawn (mapkey.LAYERS)?"""
+        return MK.shown(self._map_prefs(), name)
+
+    def _me_size(self, standard=11):
+        """Your marker's size on the scope: the old size times the setting."""
+        return MK.marker_size(self._map_prefs().get("marker_size"), standard)
+
+    def _deposit_links(self, viewport, plan):
+        """At 2x and 4x, with the switch on (1.10042): a thin line from
+        each deposit to the one nearest it, and its length where it fits."""
+        if not self._layer("links") or not PV.links_wanted(
+                viewport.extent_m, None, self.scope_zoom()) or self.scope_zoom() < 2:
+            return
+        for link in PV.deposit_links(plan["items"]):
+            a, b = link["a"], link["b"]
+            self.canvas.create_line(a["x"], a["y"], b["x"], b["y"], fill=DIM,
+                                    dash=(4, 3), tags=("deplink",))
+            self._later(7, (a["x"] + b["x"]) / 2.0, (a["y"] + b["y"]) / 2.0,
+                        format_range(link["range_m"]), DIM, 7, 3, False,
+                        ("deplink", "deplinklabel"))
+
+    def _scale_bar(self, viewport):
+        """A scale bar in the dish's bottom right corner (1.10042): a round
+        length drawn to the scope's own scale, and that length in words.
+        Left off where it would touch anything already there."""
+        try:
+            found = PV.scale_bar(1.0 / viewport.scale, min(90.0, viewport.width * 0.28))
+        except (AttributeError, ZeroDivisionError):
+            return
+        if not found:
+            return
+        metres, px = found
+        text = PV.scale_text(metres)
+        w, h = self._measure(text, 8, False)
+        bounds = getattr(self, "_scope_bounds", None) or (0, 0, viewport.width, viewport.height)
+        x1 = viewport.width - 8
+        y = bounds[3] - em(30)
+        box = (x1 - max(px, w) - 2, y - h - 5, x1 + 2, y + 4)
+        if box[0] < bounds[0] + 2 or box[1] < bounds[1] + 2 or not self._free(box):
+            return
+        canvas = self.canvas
+        canvas.create_line(x1 - px, y, x1, y, fill=DIM, tags=("scalebar",))
+        canvas.create_line(x1 - px, y - 3, x1 - px, y + 1, fill=DIM, tags=("scalebar",))
+        canvas.create_line(x1, y - 3, x1, y + 1, fill=DIM, tags=("scalebar",))
+        canvas.create_text(x1, y - 3, anchor="se", fill=DIM, font=("Consolas", 8),
+                           text=text, tags=("scalebar",))
+        self._taken().append(box)
 
     def cycle_zoom(self):
         """The next step, round to 1x again. What the zoom key does."""
@@ -3709,11 +3844,15 @@ class Overlay:
             return math.hypot(east - origin[0], north - origin[1]) <= extent
 
         for key, text, colour, item in lines:
-            if key == "wp" and not item.get("complete"):
+            if key == "wp" and not item.get("complete") and self._layer("waypoints"):
                 for point in item.get("points") or []:
                     if not within(point["east"], point["north"]):
                         continue
                     x, y = spot(point["east"], point["north"])
+                    if point.get("landed"):
+                        # Waypoint 1 is where you touched down (1.10042).
+                        self._later(6, x, y, "LANDED", colour, 7, 5, False,
+                                    ("wp", "wplanded"))
                     if point["state"] == "current":
                         r = max(6.0, viewport.radius_px(item.get("arrive_m") or 250.0))
                         canvas.create_oval(x - r, y - r, x + r, y + r, outline=colour,
@@ -3729,14 +3868,16 @@ class Overlay:
                     else:
                         canvas.create_oval(x - 1, y - 1, x + 1, y + 1, fill=FAINT,
                                            outline="", tags=("wp", "wpdone"))
-            if item.get("complete") or "bearing" not in item:
+            if item.get("complete") or "bearing" not in item or not self._layer("pointer"):
                 continue
-            dx = math.sin(math.radians(item["bearing"]))
-            dy = -math.cos(math.radians(item["bearing"]))
-            reach = 28.0
-            canvas.create_polygon(PV.arrow_points(mx + dx * reach, my + dy * reach,
-                                                  item["bearing"], 10),
-                                  fill=colour, outline=VOID, tags=("chevron", key))
+            # 1.10042: a line with a dot, out from beside you - never the
+            # same arrow as yours.
+            inner = self._me_size() + 3
+            shape = PV.pointer_shape(mx, my, item["bearing"], inner=inner,
+                                     outer=inner + 16, dot=3.0)
+            canvas.create_line(*shape["line"], fill=colour, width=2, tags=("chevron", key))
+            canvas.create_oval(*shape["dot"], fill=colour, outline=VOID,
+                               tags=("chevron", key))
         # The words, along the foot of the dish, the newest line lowest.
         bounds = getattr(self, "_scope_bounds", None) or (0, 0, viewport.width, viewport.height)
         y = bounds[3] - 4
@@ -3778,7 +3919,7 @@ class Overlay:
         if not radar or me["offscreen"]:
             return
         self.canvas.create_polygon(
-            PV.arrow_points(me["x"], me["y"], plan["heading"], 11),
+            PV.arrow_points(me["x"], me["y"], plan["heading"], self._me_size()),
             fill=RADAR_COLOURS.get(radar["state"], DIM), outline=VOID,
             tags=("radar",))
 
@@ -3824,28 +3965,45 @@ class Overlay:
             return
         ce, cn = survey["centre"]
         cx, cy = viewport.to_canvas(ce - origin[0], cn - origin[1])
-        for ring in survey.get("rings") or []:
-            r = viewport.radius_px(ring)
-            canvas.create_oval(cx - r, cy - r, cx + r, cy + r,
-                               outline=SCAN_RING, dash=(4, 6))
+        # 1.10042: each of these has a switch (mapkey.LAYERS).
+        if self._layer("drive"):
+            for ring in survey.get("rings") or []:
+                r = viewport.radius_px(ring)
+                canvas.create_oval(cx - r, cy - r, cx + r, cy + r,
+                                   outline=SCAN_RING, dash=(4, 6), tags=("survey", "drive"))
         border = survey.get("border_m")
-        if border:
-            r = viewport.radius_px(border)
-            canvas.create_oval(cx - r, cy - r, cx + r, cy + r,
-                               outline=AMBER, width=2)
-        canvas.create_line(cx - 5, cy, cx + 5, cy, fill=AMBER)
-        canvas.create_line(cx, cy - 5, cx, cy + 5, fill=AMBER)
-        for gap in survey.get("gaps") or []:
-            gx, gy = viewport.to_canvas(gap["east"] - origin[0],
-                                        gap["north"] - origin[1])
-            canvas.create_text(gx, gy, fill=RED, font=("Consolas", 8, "bold"),
-                               text="GAP")
+        if self._layer("border"):
+            if border:
+                r = viewport.radius_px(border)
+                canvas.create_oval(cx - r, cy - r, cx + r, cy + r,
+                                   outline=AMBER, width=2, tags=("survey", "border"))
+            canvas.create_line(cx - 5, cy, cx + 5, cy, fill=AMBER, tags=("survey", "border"))
+            canvas.create_line(cx, cy - 5, cx, cy + 5, fill=AMBER, tags=("survey", "border"))
+        if self._layer("gaps"):
+            for gap in survey.get("gaps") or []:
+                gx, gy = viewport.to_canvas(gap["east"] - origin[0],
+                                            gap["north"] - origin[1])
+                canvas.create_text(gx, gy, fill=RED, font=("Consolas", 8, "bold"),
+                                   text="GAP", tags=("gap",))
         done = survey.get("percent")
+        # 1.10042: the ground swept in km2 beside the share of the area.
+        try:
+            area = float(survey.get("painted_km2") or 0.0)
+        except (TypeError, ValueError):
+            area = 0.0
+        words = []
         if done is not None:
+            words.append("SWEPT %d%%" % done)
+        if area >= 0.05:
+            words.append("%.1f km2" % area if words else "SWEPT %.1f km2" % area)
+        if words:
+            text = fit_text("  ".join(words), viewport.width - 16, 9)
+            if self._measure(text, 9)[0] > viewport.width - 16:
+                text = words[0]
             canvas.create_text(viewport.width - 8, viewport.height - em(44),
                                anchor="e", font=("Consolas", 9, "bold"),
-                               fill=AMBER if done < 100 else CYAN,
-                               text="SWEPT %d%%" % done)
+                               fill=AMBER if (done is None or done < 100) else CYAN,
+                               text=text, tags=("swept_words",))
 
     def framed(self):
         """Whether the panel being drawn wears a border.
@@ -3929,12 +4087,12 @@ class Overlay:
                            outline=RULE)
         canvas.create_line(cx, cy - outer, cx, cy + outer, fill="#241706")
         canvas.create_line(cx - outer, cy, cx + outer, cy, fill="#241706")
-        for ring in plan["rings"]:
+        for ring in plan["rings"] if self._layer("rings") else ():
             radius = ring["radius"]
             if radius > outer + 1:
                 continue
             canvas.create_oval(cx - radius, cy - radius, cx + radius, cy + radius,
-                               outline="#2b1b0d", dash=(2, 5))
+                               outline="#2b1b0d", dash=(2, 5), tags=("ring",))
             # Last in line for a spot: a ring's distance is the first thing
             # to give way to a find's name.
             self._later(6, cx - 2, cy - radius + 7, format_range(ring["metres"]),
@@ -4217,7 +4375,7 @@ class Overlay:
             mine = marker_colour(self.settings)
             canvas.create_oval(x - 3, y - 3, x + 3, y + 3, fill=mine,
                                outline="")
-            canvas.create_polygon(PV.arrow_points(x, y, plan["heading"], 11),
+            canvas.create_polygon(PV.arrow_points(x, y, plan["heading"], self._me_size()),
                                   fill=mine, outline=VOID, tags=("me",))
             canvas.create_text(x, y + 14, fill=mine,
                                font=("Consolas", 8, "bold"),
@@ -4225,7 +4383,7 @@ class Overlay:
             return
         # 1.10040 (#304): you in the marker colour, not the theme's amber.
         # In the ship (#126) the arrow is longer and narrower: a ship, not a Rhino.
-        size = 15 if self._in_ship() else 11
+        size = self._me_size(15 if self._in_ship() else 11)
         canvas.create_polygon(
             PV.arrow_points(me["x"], me["y"], plan["heading"], size),
             fill=marker_colour(self.settings), outline=VOID, tags=("me",))
@@ -4275,6 +4433,10 @@ class Overlay:
             centre = "CENTRE  SRV   SIGNAL %s  %s %s" % (
                 far["signal"], format_range(far["range_m"]),
                 PV.compass_point(far["bearing"]))
+        elif self._centre_away():
+            # 1.10042: how far, and which way, the survey centre is - kept
+            # on the scope while you are not standing on it.
+            centre += "  " + self._centre_away()
         room = width - 16 - self._measure(count, 9)[0] - 12
         while len(centre) > 8 and self._measure(centre, 9)[0] > room:
             centre = centre[:-2] + "~"
@@ -4285,6 +4447,20 @@ class Overlay:
         canvas.create_text(width - 8, em(26), anchor="e", fill=DIM,
                            font=("Consolas", 9), text=count)
         canvas.create_line(0, em(34), width, em(34), fill=RULE)
+
+    def _centre_away(self):
+        """"4.10km NE": the survey centre from where you are, or "" when
+        there is none or you are on it."""
+        survey = getattr(self, "_survey", None) or {}
+        try:
+            east, north = (float(v) for v in survey.get("centre") or ())
+        except (TypeError, ValueError):
+            return ""
+        away = math.hypot(east, north)
+        if away < CENTRE_NEAR_M:
+            return ""
+        return "%s %s" % (format_range(away),
+                          PV.compass_point(math.degrees(math.atan2(east, north)) % 360.0))
 
     def _footer(self, width, height, plan, note):
         """Where to go next, and how to record it without alt-tabbing."""
@@ -4321,10 +4497,15 @@ class Overlay:
                 canvas.create_text(used + 14, height - em(13), anchor="w", fill=AMBER,
                                    font=("Consolas", 9, "bold"), text=text)
                 used += 14 + text_box(text, 9)[0]
-        hint = self.key_hint()
-        if hint and used + 14 + text_box(hint, 9)[0] <= width - 8:
-            canvas.create_text(width - 8, height - em(13), anchor="e", fill=FAINT,
-                               font=("Consolas", 9), text=hint)
+        # 1.10042: the keys are behind a switch, and where there is room
+        # the zoom key and the rig planner's are named with them.
+        hints = [self.key_hint(more=True), self.key_hint()] \
+            if self.settings.get("overlay_key_hints", True) else []
+        for hint in hints:
+            if hint and used + 14 + text_box(hint, 9)[0] <= width - 8:
+                canvas.create_text(width - 8, height - em(13), anchor="e", fill=FAINT,
+                                   font=("Consolas", 9), text=hint)
+                break
         hidden = getattr(self, "_scope_hidden", 0)
         if hidden:
             # Bottom left, clear of the survey readout on the right. Only a

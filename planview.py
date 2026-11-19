@@ -1164,3 +1164,116 @@ def focus_commodity(items, target_id="", last=""):
                     and str(item.get("commodity") or "").strip():
                 return str(item["commodity"]).strip()
     return str(last or "").strip()
+
+
+# ---------------------------------------------------------------------------
+# 1.10042: what a right-click is near, the pointer's shape, the lines between
+# deposits, and the scope's scale bar
+# ---------------------------------------------------------------------------
+
+# How far from a waypoint or a rig a right-click still counts as on it, in
+# pixels. A rig used to be a 12-pixel square to hit exactly.
+NEAR_PX = 16.0
+
+
+def near_mark(marks, x, y, reach=NEAR_PX):
+    """What a click at (x, y) is on or near: the payload of the nearest of
+    `marks` - [(x, y, payload), ...] - within `reach` pixels, else None."""
+    best, best_gap = None, None
+    for mark in marks or ():
+        try:
+            gap = math.hypot(float(mark[0]) - x, float(mark[1]) - y)
+        except (TypeError, ValueError, IndexError):
+            continue
+        if gap <= reach and (best_gap is None or gap < best_gap):
+            best, best_gap = mark[2], gap
+    return best
+
+
+def pointer_shape(x, y, bearing_deg, inner=14.0, outer=34.0, dot=3.5):
+    """The pointer to a waypoint, the ship or the Rhino: a short line out
+    from beside you along the bearing, with a dot at its far end - a shape
+    of its own, so it is never taken for your marker. {"line": (x1, y1, x2,
+    y2), "dot": (left, top, right, bottom)}."""
+    theta = math.radians(float(bearing_deg or 0.0))
+    dx, dy = math.sin(theta), -math.cos(theta)
+    x1, y1 = x + dx * inner, y + dy * inner
+    x2, y2 = x + dx * outer, y + dy * outer
+    return {"line": (x1, y1, x2, y2), "dot": (x2 - dot, y2 - dot, x2 + dot, y2 + dot)}
+
+
+# Lines between deposits: this many at most, and only between deposits this
+# far apart or more (closer is the same deposit marked twice).
+LINKS_MOST = 40
+# Zoomed in enough for them: a view this close, or closer than the fitted one.
+LINK_VIEW_M = 1500.0
+
+
+def deposit_links(items, most=LINKS_MOST, skip_m=LINE_SKIP_M):
+    """Each live deposit on the picture joined to the one nearest it, once a
+    pair, shortest first: [{"a": item, "b": item, "range_m"}]. Mined-out
+    deposits and those past the edge have none."""
+    live = [i for i in items or [] if _is_live(i) and not i.get("offscreen")]
+    pairs = {}
+    for index, item in enumerate(live):
+        best = None
+        for other_index, other in enumerate(live):
+            if other_index == index:
+                continue
+            gap = math.hypot(float(item["east_m"]) - float(other["east_m"]),
+                             float(item["north_m"]) - float(other["north_m"]))
+            if gap < skip_m:
+                continue
+            if best is None or gap < best[0]:
+                best = (gap, other_index)
+        if best is not None:
+            key = (min(index, best[1]), max(index, best[1]))
+            pairs[key] = best[0]
+    found = [{"a": live[a], "b": live[b], "range_m": gap}
+             for (a, b), gap in sorted(pairs.items(), key=lambda kv: kv[1])]
+    return found[:max(0, int(most))]
+
+
+def links_wanted(extent_m, fitted_m=None, zoom=1):
+    """Whether the view is close enough for the lines between deposits: at
+    2x or 4x on the scope, or on the map zoomed in past the fitted view or
+    showing LINK_VIEW_M or less."""
+    try:
+        if int(zoom or 1) >= 2:
+            return True
+        extent = float(extent_m)
+    except (TypeError, ValueError):
+        return False
+    if extent <= LINK_VIEW_M:
+        return True
+    try:
+        return fitted_m is not None and extent < float(fitted_m) * 0.95
+    except (TypeError, ValueError):
+        return False
+
+
+def scale_text(metres):
+    """A scale bar's label: 500 m, 1 km, 2.5 km."""
+    metres = float(metres)
+    if metres < 1000:
+        return "%d m" % round(metres)
+    km = metres / 1000.0
+    return ("%d km" % round(km)) if abs(km - round(km)) < 1e-9 else ("%g km" % km)
+
+
+def scale_bar(metres_per_px, most_px, least_px=12.0):
+    """The longest round length (one of NICE_STEPS_M) that fits in `most_px`
+    pixels at this scale, as (metres, pixels); None when none fits."""
+    try:
+        per_px = float(metres_per_px)
+        most = float(most_px)
+    except (TypeError, ValueError):
+        return None
+    if not (per_px > 0 and math.isfinite(per_px)) or most < least_px:
+        return None
+    best = None
+    for step in NICE_STEPS_M:
+        px = step / per_px
+        if least_px <= px <= most:
+            best = (step, px)
+    return best

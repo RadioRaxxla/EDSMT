@@ -13,6 +13,11 @@ own prefix ("!rr" unless changed in Settings) is read as a command:
     !rr rig up 3               rig 3 up ("rigs up": every rig)
     !rr centre                 move the survey centre here
     !rr undo                   take back the last deposit marked
+    !rr signal                 log the signal here (1.10042: these five do
+    !rr border                 what their keys do, so a session with no
+    !rr zoom                   global keys needs no joystick)
+    !rr plan                   the rig planner: start or close the trace
+    !rr skip                   the rig planner: skip this pin
 
 Only the commander's own messages are ever read (SendText, never the
 messages other commanders send), only when the switch in Settings is on,
@@ -300,7 +305,26 @@ def _deposit_words(tokens):
 
 
 HELP = ("Try: <commodity> h/m 4, <bearing> <distance> <commodity>, "
-        "rig down 3, rig up 3, rigs up, centre, undo.")
+        "rig down 3, rig up 3, rigs up, centre, undo, signal, border, zoom, "
+        "plan, skip.")
+
+# 1.10042: words that do what a key does. The first word, and any that may
+# follow it ("log signal", "plan rigs", "skip pin").
+KEY_WORDS = {"signal": "signal", "border": "border", "zoom": "zoom",
+             "plan": "plan", "skip": "skip_pin"}
+_KEY_EXTRA = {"signal": ("log",), "plan": ("rigs", "rig"), "skip_pin": ("pin",),
+              "border": (), "zoom": ()}
+
+
+def _key_word(tokens):
+    """The key action a few words ask for - "signal", "log signal",
+    "plan rigs", "skip pin" - or None."""
+    words = [t.lower() for t in tokens]
+    for word in words:
+        action = KEY_WORDS.get(word)
+        if action and all(w == word or w in _KEY_EXTRA[action] for w in words):
+            return action
+    return None
 
 
 def parse_command(message, prefix=DEFAULT_PREFIX):
@@ -310,6 +334,8 @@ def parse_command(message, prefix=DEFAULT_PREFIX):
     {"action": "range", bearing, metres, commodity, amount, density, rigs}
     {"action": "rig_down", "rig": n or None}   {"action": "rig_up", "rig": n}
     {"action": "all_up"}   {"action": "centre"}   {"action": "undo"}
+    {"action": "signal"}   {"action": "border"}   {"action": "zoom"}
+    {"action": "plan"}     {"action": "skip_pin"}
     {"action": "error", "why": "..."} - addressed to EDSMT but not understood.
     """
     rest = addressed(message, prefix)
@@ -324,6 +350,8 @@ def parse_command(message, prefix=DEFAULT_PREFIX):
     if tokens[0].lower() in ("mark", "range") and len(tokens) > 1:
         tokens = tokens[1:]
     first = tokens[0].lower()
+    if _key_word(tokens) and len(tokens) <= 2:
+        return {"action": _key_word(tokens)}
     if first == "undo":
         return {"action": "undo"}
     if first in ("centre", "center"):

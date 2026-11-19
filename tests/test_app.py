@@ -77,7 +77,7 @@ app.refresh_locations = lambda: None
 app.refresh_deposits = lambda: None
 app.refresh_commodities = lambda: None
 app.redraw = lambda: None
-app.share = lambda record: None
+app.share = lambda record, tonnes=None: None
 
 app.log_location()
 loc = app.store.location("Ega", "Ega 1", "1")
@@ -1286,16 +1286,16 @@ print("== the copy buttons are somewhere you can actually see them ==")
 # They were built in the last column of an eight-column table. On any
 # window narrower than the table they rendered off the right edge, so the
 # reported bug was "there is no copy button" and the bug was real - just
-# not the one it looked like.
-check("copy is the first column, not the last", A.COPY_COLUMN == 0)
-check("and the data starts after it", A.DATA_COLUMN_0 == 1)
+# not the one it looked like. Since 1.10040 the big tables are a tree view
+# and a row's buttons are offered for the row itself (1.10042: the last
+# label grids went with them), so no column can push them off the screen.
 import io as _io
 src_find = _io.open(os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "edsmt.py"), encoding="utf-8").read()
 check("nothing grids itself at len(self._headers) any more",
       "column=len(self._headers)" not in src_find)
-check("every data cell is offset past the copy column",
-      "column=DATA_COLUMN_0 + column" in src_find)
+check("a row's buttons belong to the row, not to a column of the table",
+      "def actions_for(self, index):" in src_find and "COPY_COLUMN" not in src_find)
 
 print("== no page cap: every page is asked for (1.10036) ==")
 check("the first page is more than fifty", A.SEARCH_LIMIT >= 200, A.SEARCH_LIMIT)
@@ -1515,7 +1515,7 @@ _ed.selected = None
 _ed.say = lambda text, colour=None: None
 for _name in ("refresh_locations", "refresh_deposits", "redraw", "on_pick"):
     setattr(_ed, _name, lambda *a, **k: None)
-_ed.share = lambda row: _reshared.append(row)
+_ed.share = lambda row, tonnes=None: _reshared.append(row)
 check("there is a deposit to correct", len(_ed.store.deposits) > 0,
       len(_ed.store.deposits))
 _victim = _ed.store.deposits[0]
@@ -1532,7 +1532,7 @@ check("and mark_mined does not now send it a second time",
       "self.share(" not in _mm, _mm)
 _de = src.split("def deposit_edited")[1].split("\n    def ")[0]
 check("the one door they both go through is deposit_edited",
-      "self.share(row)" in _de)
+      "self.share(row" in _de)  # 1.10042: it also passes the tonnes
 
 print("== tick names what actually failed ==")
 # Every failure in all four stages came out as "Journal problem: ..." - which
@@ -1788,7 +1788,7 @@ check("a control on the heading line takes its width before the rule expands",
 
 print("== one visual language for buttons ==")
 ROLES = {"BTN_PRIMARY", "BTN_SECONDARY", "BTN_WARN", "BTN_DANGER",
-         "BTN_ROW", "BTN_GHOST", "BTN_HEADING"}
+         "BTN_ROW", "BTN_GHOST"}
 check("the roles are declared once, at the top",
       all(isinstance(getattr(A, r, None), dict) for r in ROLES),
       [r for r in ROLES if not isinstance(getattr(A, r, None), dict)])
@@ -1994,7 +1994,7 @@ def af_app(settings=None):
     it.plan = type("P", (), {"show": lambda s, rows=None, **kw: None,
                              "select": lambda s, i: None})()
     it.say = lambda text, colour=None: None
-    it.share = lambda record: None
+    it.share = lambda record, tonnes=None: None
     it.draw_overlay = lambda rows, heading, **kw: None
     return it
 
@@ -2702,7 +2702,7 @@ shared = []
 for _name in ("refresh_locations", "refresh_deposits", "refresh_commodities",
               "redraw", "on_pick"):
     setattr(up, _name, lambda *a, **k: None)
-up.share = lambda record: shared.append(dict(record))
+up.share = lambda record, tonnes=None: shared.append(dict(record))
 
 up.fields["commodity"].set("Ruby"); up.fields["rigs"].set("3")
 up.fields["amount"].set("High"); up.fields["density"].set("Low")

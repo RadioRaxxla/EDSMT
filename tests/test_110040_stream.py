@@ -129,7 +129,7 @@ def _state():
           and not any(n in words for n in ("10.1", "20.3", "10.25", "3.33", "4.44", "1.11")), words)
     check("nothing about another commander", "CMDR Other" not in words)
     check("and nothing about this one but the name", set(state) == {
-        "app", "cmdr", "system", "body", "session", "tonnes", "tonnes_total", "mining", "cr_hr",
+        "app", "cmdr", "system", "body", "session", "tonnes", "tonnes_total", "mining", "doing", "cr_hr",
         "cr_hr_text", "merits", "merits_estimated", "rigs_down", "nearest", "last_find", "colours",
         "updated", "schema", "version"}, sorted(state))
 
@@ -305,8 +305,8 @@ def _server():
             check("%s names no position either" % path, not re.search(r"\b(lat|lon)\b", page))
         _s, _h, viewer = fetch(port, "/viewer")
         viewer = viewer.decode("utf-8")
-        check("the viewer card: CMDR, what is mined and where, tonnes, Cr/hr and the last find",
-              all(w in viewer for w in ("cmdr(s)", "s.mining", "s.body", "s.system", "s.tonnes_total",
+        check("the viewer card: CMDR, what he is doing and where, tonnes, Cr/hr and the last find",
+              all(w in viewer for w in ("cmdr(s)", "s.doing", "s.body", "s.system", "s.tonnes_total",
                                         "s.cr_hr_text", "s.last_find")))
         _s, _h, overlay = fetch(port, "/overlay")
         overlay = overlay.decode("utf-8")
@@ -408,15 +408,19 @@ def _facts():
     check("sold: what it sold for, no estimate", sold["credits"] == 30000000
           and sold["credits_estimated"] is False and sold["cr_hr"] == 12000000, sold)
     check("no merits: none", sold["merits"] is None)
+    under = SC.card_facts(dict(ROW, credits="233693096"), "Cee", estimate={"value": 234335110.0})
+    check("sold for a little less than the estimate: the sale, not the estimate",
+          under["credits"] == 233693096 and under["credits_estimated"] is False, under)
     check("a row on its own still makes a card", SC.card_facts({"mined": "Gold:3"})["tonnes"] == [("Gold", 3)])
     hidden = SC.card_facts(ROW, "Cee", hide=lambda t: ST.hide(t, [("Ega 1", "a body"), ("Ega", "a system")]))
     check("with streamer mode's rule, the names it hides", (hidden["body"], hidden["system"])
           == ("a body", "a system"), hidden)
     texts = SC.render_card(facts)[1]
     for words in ("CMDR Cee", "Ega 1", "Ega", "21 Oct 2026", "Platinum", "34 t", "40 t",
-                  "est. 25,000,000 Cr", "est. 10,000,000", "1,200", "2h 30m"):
+                  "est. 25,000,000 Cr", "25.0M", "10.0M", "1,200", "2h 30m"):
         check("the card writes %r" % words, words in texts, texts)
-    check("no merits, no merits box", "MERITS" not in SC.render_card(sold)[1] and "MERITS" in texts)
+    check("no merits, no merits box", "Merits" not in SC.render_card(sold)[1] and "Merits" in texts)
+    check("the version at the foot, as it is shown", "EDSMT 1.2" in SC.render_card(facts, version="1.2")[1])
     check("named like a picture, so it is tidied with them - by the real names",
           re.match(r".+_\d{8}-\d{4}\.png$", SC.card_name(ROW))
           and SC.card_name(ROW) == "card_Ega_Ega_1_20261021-0248.png", SC.card_name(ROW))
@@ -445,8 +449,26 @@ def _picture():
     facts = SC.card_facts(ROW, "Cee", estimate={"value": 25000000.0}, merits=1200)
     with_map, _texts = SC.render_card(facts, fake_map())
     plain, _texts = SC.render_card(facts)
-    check("the size a stream or Discord shows well", with_map.size == SC.SIZE == plain.size == (1200, 675),
-          (with_map.size, plain.size))
+    check("the size a stream or Discord shows well, the weekly card's own", with_map.size == SC.SIZE
+          == plain.size == (1280, 720), (with_map.size, plain.size))
+    # 1.10042: drawn in the weekly card's style - his words, "I like this
+    # design... same with all cards and stuff".
+    check("the weekly card's type ships with EDSMT, with its licences",
+          all(os.path.isfile(os.path.join(REPO, "fonts", n)) for n in
+              ("Rajdhani-Bold.ttf", "Rajdhani-SemiBold.ttf", "Rajdhani-Medium.ttf",
+               "ShareTechMono-Regular.ttf", "OFL-Rajdhani.txt", "OFL-ShareTechMono.txt"))
+          and SC.style_font("bold", 40) is not None and SC.STYLE_FONTS_FOUND)
+    for _spec in ("EDSMT.spec", "EDSMT-onefile.spec"):
+        _text = open(os.path.join(REPO, "build", _spec), encoding="utf-8").read()
+        check("%s bundles the fonts" % _spec, '"fonts"' in _text and "*.ttf" in _text and "OFL-" in _text)
+    check("the type's licences are named in the notices",
+          "Rajdhani" in open(os.path.join(REPO, "THIRD-PARTY-NOTICES.txt"), encoding="utf-8").read())
+    top_bar = plain.getpixel((640, 1))
+    check("the amber bar along the top", top_bar[0] > 200 and 120 < top_bar[1] < 200 and top_bar[2] < 90, top_bar)
+    glass = plain.getpixel((640, 680))
+    check("on the dark glass", max(glass) < 40, glass)
+    check("the four tiles and three panels carry the weekly card's brackets",
+          len(SC.panel_boxes(True)) == 7 and all(b[2] - b[0] > 200 for b in SC.panel_boxes(True)))
     x0, y0, x1, y1 = SC.MAP_BOX
     inside = colours_in(with_map, (x0 + 20, y0 + 20, x1 - 20, y1 - 20))
     check("the map is drawn in as a thumbnail when there is one", inside == {(255, 0, 0)}, inside)
@@ -456,7 +478,10 @@ def _picture():
           not any(c == (255, 0, 0) for c in colours_in(plain, (0, 0) + SC.SIZE)))
     framed, _t = SC.render_card(facts, fake_map((300, 900)))
     raw = framed.tobytes()
-    reds = [i // 3 for i in range(0, len(raw), 3) if raw[i:i + 3] == b"\xff\x00\x00"]
+    # A picture of another shape is used whole, green and red: all of it is
+    # measured, so its shape is its own and not the red square inside it.
+    reds = [i // 3 for i in range(0, len(raw), 3)
+            if raw[i:i + 3] in (b"\xff\x00\x00", b"\x00\xff\x00")]
     xs = {i % SC.SIZE[0] for i in reds}
     ys = {i // SC.SIZE[0] for i in reds}
     check("a picture of another shape keeps its shape and stays in its box",
@@ -472,7 +497,8 @@ def _picture():
           and marked.crop((0, 0, 900, 400)).tobytes() == plain.crop((0, 0, 900, 400)).tobytes())
     many = SC.card_facts(dict(ROW, mined=";".join("Thing%d:%d" % (i, 20 - i) for i in range(14))), "Cee")
     _img, many_texts = SC.render_card(many)
-    check("a long list is cut, and says how many more", "+ 6 more" in many_texts, many_texts)
+    check("a long list is cut, and says how many more", "+ %d more" % (14 - SC.TONNES_SHOWN) in many_texts,
+          many_texts)
     long = SC.card_facts(dict(ROW, body="Col 285 Sector ZL-K b22-2 A 1 a very long body name indeed",
                               system="Col 285 Sector ZL-K b22-2"), "A Commander With A Long Name")
     image, _t = SC.render_card(long, fake_map(), badge=badge)
@@ -531,15 +557,32 @@ def _discord_files():
             {"id": 0, "filename": "map.png"}, {"id": 1, "filename": "card.png"}]
             and files == [("map.png", b"m", "image/png"), ("card.png", b"c", "image/png")], sent[-1])
         check("to the same webhook, waiting for the message", url == HOOK + "?wait=true")
+        # 1.10042: after the sale the card is drawn again and put in place of
+        # the old one; the map stays.
+        EDO.discord_edit(HOOK, "123456", {"content": "y"}, keep=["111"], files=[("card.png", b"c2")])
+        url, payload, files = sent[-1]
+        check("an edit can put a new card in, keeping what it is told to keep",
+              url == HOOK + "/messages/123456" and payload["attachments"] == [
+                  {"id": "111"}, {"id": 0, "filename": "card.png"}]
+              and files == [("card.png", b"c2", "image/png")], sent[-1])
     finally:
         EDO.post_multipart = real
-    check("each webhook has a Session card switch, off for a new one",
-          "card" in WH.KINDS and WH.NEW_ROW["card"] is False and WH.entry("x", HOOK)["card"] is False)
+    # 1.10042: the card is what he wants in the channel - on for a new
+    # webhook, and on once for every webhook saved before.
+    check("each webhook has a Session card switch, on for a new one",
+          "card" in WH.KINDS and WH.NEW_ROW["card"] is True and WH.entry("x", HOOK)["card"] is True)
     old = [{"name": "Radio Raxxla", "url": HOOK, "finds": False, "sessions": True, "map": True}]
-    check("a webhook saved before the switch existed reads with it off, the rest as it was",
-          WH.clean(old) == [dict(old[0], card=False)], WH.clean(old))
+    check("a webhook saved before the switch existed reads with it on, the rest as it was",
+          WH.clean(old) == [dict(old[0], card=True)], WH.clean(old))
+    off = {"discord_webhooks": [dict(old[0], card=False)]}
+    merged = WH.upgrade(dict(off), off)
+    check("a webhook saved with the card off has it turned on once",
+          merged["discord_webhooks"][0]["card"] is True and merged.get(WH.CARD_ONCE) is True, merged)
+    again = {"discord_webhooks": [dict(old[0], card=False)], WH.CARD_ONCE: True}
+    check("and never again: turned off after that, it stays off",
+          WH.upgrade(dict(again), again)["discord_webhooks"][0]["card"] is False)
     check("the card goes only to the webhooks with it on",
-          [r["name"] for r in WH.wanted([WH.entry("A", HOOK, card=True), WH.entry("B", HOOK)], "card",
+          [r["name"] for r in WH.wanted([WH.entry("A", HOOK, card=True), WH.entry("B", HOOK, card=False)], "card",
                                         lambda u: True)] == ["A"])
 
 
@@ -796,18 +839,18 @@ def _settings():
         win.tabs.set("Sharing")
         pump(4)
         row = win.hook_rows[0]
-        check("each webhook row has a Session card switch, with its note, off on a row saved before it",
+        check("each webhook row has a Session card switch, with its note, on for a row saved before it",
               "card" in row["switches"] and row["switches"]["card"].cget("text") == "Session card"
-              and getattr(row["switches"]["card"], "_edsmt_tip", "") and row["vars"]["card"].get() is False)
+              and getattr(row["switches"]["card"], "_edsmt_tip", "") and row["vars"]["card"].get() is True)
         frame = row["frame"]
         pump(2)
         check("and the row still has room for Test and Remove",
               all(shown(row[k]) and row[k].winfo_rootx() + row[k].winfo_width()
                   <= frame.winfo_rootx() + frame.winfo_width() for k in ("test", "remove")),
               [(row[k].winfo_rootx(), row[k].winfo_width()) for k in ("test", "remove")])
-        row["vars"]["card"].set(True)
+        row["vars"]["card"].set(False)
         win.save()
-        check("switched on, it is saved with the row", saved[-1]["discord_webhooks"][0]["card"] is True
+        check("switched off, it is saved with the row", saved[-1]["discord_webhooks"][0]["card"] is False
               and saved[-1]["discord_webhooks"][0]["map"] is True, saved[-1]["discord_webhooks"])
     finally:
         app.apply_settings = real_apply
@@ -1000,7 +1043,7 @@ def _earnings():
             size = card.size
             inside = colours_in(card.convert("RGB"), (SC.MAP_BOX[0] + 20, SC.MAP_BOX[1] + 20,
                                                       SC.MAP_BOX[2] - 20, SC.MAP_BOX[3] - 20))
-        check("a 1200 x 675 picture", size == SC.SIZE, size)
+        check("a 1280 x 720 picture", size == SC.SIZE == (1280, 720), size)
         check("with the session's map in it", (255, 0, 0) in inside and len(inside) <= 3, inside)
         _s, headers, served = fetch(port, "/card.png")
         check("and the OBS page serves it as /card.png", served == open(path, "rb").read()
@@ -1068,13 +1111,14 @@ def _discord():
     a, b, c = hook("112233445566778899", "a"), hook("223344556677889900", "b"), hook("334455667788990011", "c")
     app.settings["discord_webhooks"] = [WH.entry("Both", a, map=True, card=True),
                                         WH.entry("Card", b, map=False, card=True),
-                                        WH.entry("Map", c, map=True)]
+                                        WH.entry("Map", c, map=True, card=False)]
     sent = []
     real = (EDO.discord_post_file, EDO.post_json)
 
     def post_file(url, payload, filename, data, timeout=40.0, more=()):
         sent.append((url.split("?")[0], [filename] + [n for n, _d in more], payload))
-        return {"id": str(900000 + len(sent)), "attachments": [{"id": str(i)} for i in range(1 + len(more))]}
+        return {"id": str(900000 + len(sent)), "attachments": [
+            {"id": str(i), "filename": n} for i, n in enumerate([filename] + [m for m, _d in more])]}
 
     def post_json(url, payload, timeout=20.0, headers=None):
         sent.append((url.split("?")[0], [], payload))
@@ -1096,12 +1140,36 @@ def _discord():
               len(files.get(a, [])) == 2 and files[a][1] == card, files.get(a))
         check("card on, map off: the card alone", files.get(b) == [card], files.get(b))
         check("card off: no card", card not in files.get(c, []) and len(files.get(c, [])) == 1, files.get(c))
+        shows = {url: p["embeds"][0].get("image", {}).get("url") for url, _n, p in sent}
+        check("the summary shows the card where there is one (1.10042), else the map",
+              shows.get(a) == "attachment://" + card and shows.get(b) == "attachment://" + card
+              and shows.get(c) == "attachment://" + files[c][0], shows)
         check("the card is in the pictures folder too",
               os.path.isfile(os.path.join(MI.pictures_dir(A.DATA_DIR), card)))
         key = SL.post_key(str(run["id"]), WH.hook_key(a))
         check("and both attachments are kept when the message is edited after the sale",
               app.post_book.posted.get(key, {}).get("attachments") == ["0", "1"],
               app.post_book.posted.get(key))
+        # 1.10042: after the sale the card is drawn again, in place of the old.
+        edits = []
+        real_edit = EDO.discord_edit
+        EDO.discord_edit = lambda url, mid, payload, keep=(), timeout=20.0, files=(): (
+            edits.append((url.split("?")[0], list(keep), [n for n, _d in files])) or {"id": mid})
+        try:
+            run.update({"sold": "Painite:200", "credits": "60000000", "sales": "1"})
+            app.earnings.save()
+            for entry in app.post_book.posted.values():
+                entry["changed_at"] = time.time() - SL.EDIT_QUIET_S - 1
+                entry["seen_state"] = app.discord_state(run)
+            app.post_discord_sessions()
+            app.worker.run()
+        finally:
+            EDO.discord_edit = real_edit
+        by = {url: (keep, names) for url, keep, names in edits}
+        check("after the sale the card is drawn again and put in place of the old one, the map kept",
+              by.get(a) == (["0"], [card]) and by.get(b) == ([], [card]), by)
+        check("a summary that shows the map is edited as before, no new picture",
+              by.get(c) == (["0"], []), by.get(c))
     finally:
         EDO.discord_post_file, EDO.post_json = real
         app.settings["discord_webhooks"] = []

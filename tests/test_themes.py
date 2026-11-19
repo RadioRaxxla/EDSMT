@@ -114,8 +114,7 @@ check("a new app theme can be worn at once",
 _restart = src.split("    def restart_app(self):")[1].split("\n    def ")[0]
 check("and the restart runs this program, nothing downloaded",
       "relaunch = [sys.executable]" in _restart
-      and "subprocess.Popen(relaunch" in _restart and "path" not in _restart.split(
-          "subprocess.Popen(relaunch")[1][:40])
+      and "RL.start(relaunch)" in _restart and "subprocess.Popen" not in _restart)
 check("the box count text no longer says four",
       "none of the four boxes" not in src)
 

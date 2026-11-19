@@ -160,14 +160,27 @@ def _deposit_facts(item):
     deposit = item.get("deposit") or {}
     depleted = str(deposit.get("amount") or "").strip().lower() in ("depleted", "exhausted", "empty")
     rigs = str(deposit.get("rigs") or "").strip()
+    try:
+        position = (float(deposit["lat"]), float(deposit["lon"]))
+    except (TypeError, ValueError, KeyError):
+        position = None
     return {"depleted": depleted, "rigs": rigs,
             "amount": str(deposit.get("amount") or "").strip(),
-            "density": str(deposit.get("density") or "").strip()}
+            "density": str(deposit.get("density") or "").strip(),
+            "position": position}
+
+
+def position_text(position):
+    """A deposit's latitude and longitude as its legend row gives it (1.10042):
+    "10.0100, -20.0050"; "" when it has none."""
+    if not position:
+        return ""
+    return "%.4f, %.4f" % (position[0], position[1])
 
 
 def build_scene(rows, system="", body="", signal="", anchor=None, survey=None,
                 rigs=None, trail=None, cmdr="", when=None, version="",
-                colour=None, size=SIZE, note=""):
+                colour=None, size=SIZE, note="", golden_m=None):
     """Everything a picture draws, as data. See the module note."""
     colour = colour or (lambda name: DEFAULT_COLOUR)
     width, height = int(size[0]), int(size[1])
@@ -229,7 +242,7 @@ def build_scene(rows, system="", body="", signal="", anchor=None, survey=None,
             # A site card (1.10040, #325): the rest of the body, faint.
             "dim": bool(deposit.get("dim")) if (deposit := item.get("deposit") or {}) else False,
             "range_m": item["range_m"], "amount": facts["amount"],
-            "density": facts["density"],
+            "density": facts["density"], "position": facts["position"],
             "from_centre_m": math.hypot(item["east_m"], item["north_m"]),
             "compass": PV.compass_point(PV.to_polar(item["east_m"], item["north_m"])[1])})
     # The rigs, numbered.
@@ -251,6 +264,18 @@ def build_scene(rows, system="", body="", signal="", anchor=None, survey=None,
                           "r": patch["radius"] + 8, "rigs": patch["rigs"],
                           "count": patch["count"],
                           "commodities": patch["commodities"]}
+    # 1.10042: the top patches - the map's own golden groups, the same knots
+    # the map and the scope circle - each circled and numbered.
+    scene["top_patches"] = []
+    golden = PV.golden_radius(golden_m) if golden_m else PV.GOLDEN_RADIUS_M
+    live = [item for item in shown if not (item.get("deposit") or {}).get("dim")]
+    for group in PV.golden_groups(live, {}, radius_m=golden):
+        centre = group["centre"]
+        px, py = put(centre["x"], centre["y"])
+        scene["top_patches"].append({"n": group["n"], "x": px, "y": py,
+                                     "r": viewport.radius_px(group["radius_m"]),
+                                     "rigs": group["rigs"], "count": group["count"],
+                                     "commodities": group["commodities"]})
 
     # Scale bar: the ring step, in pixels.
     step = plan["ring_step_m"]
@@ -294,6 +319,10 @@ def build_scene(rows, system="", body="", signal="", anchor=None, survey=None,
     if scene["patch"]:
         texts.append("BEST PATCH  %dR  %s" % (scene["patch"]["rigs"],
                                               ", ".join(scene["patch"]["commodities"])))
+    texts += ["TOP PATCH %d  %dR  %d finds" % (p["n"], p["rigs"], p["count"])
+              for p in scene["top_patches"]]
+    texts += ["%s  %s" % (m["commodity"] or "Unknown", position_text(m["position"]))
+              for m in scene["markers"] if m["position"] and not m.get("dim")]
     if note:
         texts.append(note)
     scene["texts"] = texts
@@ -365,7 +394,17 @@ def draw_scene(scene):
     if len(scene["trail"]) > 1:
         pen.line([local(x, y) for x, y in scene["trail"]], fill="#5b6f86", width=s(2),
                  joint="curve")
+    # 1.10042: the top patches, on the plot's own layer so a wide circle
+    # stops at the plot's edge.
+    for top in scene.get("top_patches") or []:
+        lx, ly = local(top["x"], top["y"])
+        pen.ellipse([lx - s(top["r"]), ly - s(top["r"]), lx + s(top["r"]), ly + s(top["r"])],
+                    outline=GOLD, width=s(1))
     big.paste(layer, (int(s(x0)), int(s(y0))))
+    for top in scene.get("top_patches") or []:
+        tx, ty = top["x"], max(y0 + 12, top["y"] - top["r"] + 10)
+        if x0 < tx < x1 and y0 < ty < y1:
+            text(tx, ty, str(top["n"]), 13, GOLD, True, "mm")
 
     if scene["patch"]:
         p = scene["patch"]
@@ -459,6 +498,12 @@ def draw_scene(scene):
         ly += 26
         text(lx + 26, ly, ", ".join(patch["commodities"])[:44], 14, DIM)
         ly += 30
+    if scene.get("top_patches"):
+        circle(lx + 8, ly + 11, 8, outline=GOLD, line=1)
+        text(lx + 26, ly, "TOP PATCHES", 17, GOLD, True)
+        text(scene["size"][0] - 24, ly + 1, "   ".join(
+            "%d: %dR" % (p["n"], p["rigs"]) for p in scene["top_patches"]), 14, DIM, False, "ra")
+        ly += 30
     # Each deposit: what, how many rigs, how much is left, and where from the
     # middle of the patch.
     ly += 8
@@ -473,9 +518,12 @@ def draw_scene(scene):
         circle(lx + 8, ly + 10, 6, fill=PLOT if marker["hollow"] else marker["colour"],
                outline=marker["colour"], line=2 if marker["hollow"] else 1)
         text(lx + 24, ly, left, 14, DIM if marker["hollow"] else TEXT)
-        text(scene["size"][0] - 24, ly, "%s  %s  %s" % (state.replace(" ", " / ") if state.count(" ") == 1 else state,
-                                                       metres_text(marker["from_centre_m"]),
-                                                       marker["compass"]), 13, DIM, False, "ra")
+        where = "%s  %s  %s" % (state.replace(" ", " / ") if state.count(" ") == 1 else state,
+                                metres_text(marker["from_centre_m"]), marker["compass"])
+        # 1.10042: and where it is, so it can be found again from the picture.
+        if marker.get("position"):
+            where += "  " + position_text(marker["position"])
+        text(scene["size"][0] - 24, ly, where, 13, DIM, False, "ra")
         ly += 24
     if scene["note"]:
         text(lx, y1 - 22, scene["note"], 14, DIM)

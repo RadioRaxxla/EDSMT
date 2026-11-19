@@ -102,6 +102,15 @@
 .edsmt .chip.reported{color:var(--mute)}
 
 .edsmt .readout{align-self:start}
+
+/* EDSMT in numbers: the community map's own counts, asked for when the page opens. */
+.edsmt .numbers{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:14px;margin:6px 0 14px}
+.edsmt .num{border:1px solid var(--line-soft);border-left:2px solid var(--signal);padding:12px 14px;display:flex;flex-direction:column;gap:4px}
+.edsmt .num b{font-family:var(--mono);font-size:clamp(1.5rem,1.1rem + 1.4vw,2.2rem);font-weight:400;color:var(--paper);line-height:1.1}
+.edsmt .num span{font-family:var(--mono);font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+.edsmt .numbers-note{font-family:var(--mono);font-size:.74rem;color:var(--mute);max-width:none}
+/* A tile or the section with no number yet is not drawn at all, whatever display it has above. */
+.edsmt #numbers[hidden],.edsmt .num[hidden]{display:none}
 .edsmt .kv .v.ok{color:var(--ok)}
 
 .edsmt .faq{max-width:80ch}
@@ -170,15 +179,15 @@
       <div class="ctas">
         <a class="btn" href="EDSMT-Setup.exe">Download &middot; Installer</a>
         <a class="btn ghost" href="EDSMT.exe">Portable .exe</a>
-        <a class="btn ghost" href="https://github.com/TheAnnouncer/EDSMT/releases/latest">Linux build</a>
+        <a class="btn ghost" href="https://github.com/RadioRaxxla/EDSMT/releases/latest">Linux build</a>
         <a class="btn ghost" href="EDSMT-source.zip">Source zip</a>
       </div>
       <p class="note">Free &middot; Windows and Linux &middot; No account &middot; GPL-3.0</p>
       <p class="build">
-        <span>Build <b><!--VERSION-->1.10041<!--/VERSION--></b></span>
+        <span>Build <b><!--VERSION-->1.2<!--/VERSION--></b></span>
         <span>Elite Dangerous <b>4.4.2.0</b></span>
         <span><a href="#whatsnew">What changed</a></span>
-        <span>Source: <a href="https://github.com/TheAnnouncer/EDSMT">github.com/TheAnnouncer/EDSMT</a></span>
+        <span>Source: <a href="https://github.com/RadioRaxxla/EDSMT">github.com/RadioRaxxla/EDSMT</a></span>
       </p>
     </div>
     <figure class="shot">
@@ -189,6 +198,77 @@
       <figcaption>The Rhino &middot; screenshot by CMDR TheAnnouncer &middot; Elite Dangerous &copy; Frontier Developments plc</figcaption>
     </figure>
   </header>
+
+  <section class="section" id="numbers" hidden>
+    <div class="sec-head"><div><span class="label on">Live from the community map &middot; counts only</span><h2>EDSMT in numbers</h2></div></div>
+    <div class="numbers">
+      <div class="num" data-stat="deposits" hidden><b></b><span>Deposits mapped</span></div>
+      <div class="num" data-stat="sites" hidden><b></b><span>Mining locations surveyed</span></div>
+      <div class="num" data-stat="bodies" hidden><b></b><span>Bodies</span></div>
+      <div class="num" data-stat="systems" hidden><b></b><span>Systems</span></div>
+      <div class="num" data-stat="commanders" hidden><b></b><span>Commanders who have shared a find</span></div>
+      <div class="num" data-stat="installs" hidden><b></b><span>Total installs</span></div>
+      <div class="num" data-stat="active" hidden><b></b><span>Installs in use this week</span></div>
+      <div class="num" data-stat="finds7" hidden><b></b><span>Finds in the last 7 days</span></div>
+      <div class="num" data-stat="rigs" hidden><b></b><span>Rig spots mapped</span></div>
+      <div class="num" data-stat="commodities" hidden><b></b><span>Commodities found</span></div>
+    </div>
+    <p class="numbers-note" data-stats="records"></p>
+    <p class="note"><a href="https://edsmt.radioraxxla.com/live">What came in lately</a> &middot; every number is counted from what commanders have shared, and nothing here says where on a body anything is.</p>
+    <script>
+    (function () {
+      // The community map's own counts. Nothing is written into the page by
+      // hand: a tile shows only when the map has given it a number, and the
+      // whole section stays out of sight if no answer comes.
+      var sec = document.getElementById('numbers');
+      if (!sec || !window.fetch) { return; }
+      var MAP = 'https://api.radioraxxla.com';  // the site lets its pages ask this address, not edsmt.radioraxxla.com
+      function n(x) { return Number(x || 0).toLocaleString('en-GB'); }
+      function put(key, value) {
+        var tile = sec.querySelector('[data-stat="' + key + '"]');
+        if (!tile || value == null || isNaN(Number(value))) { return; }
+        tile.querySelector('b').textContent = n(value);
+        tile.hidden = false;
+        sec.hidden = false;
+      }
+      function ask(url) {
+        return fetch(url).then(function (r) {
+          if (!r.ok) { throw new Error(r.status); }
+          return r.json();
+        });
+      }
+      function whole(s) {
+        var m = s.map || {}, c = s.commanders || {}, a = s.activity || {}, r = s.records || {};
+        put('deposits', m.deposits); put('sites', m.sites); put('bodies', m.bodies);
+        put('systems', m.systems); put('commanders', c.sharing);
+        if (c.installs) { put('installs', c.installs); }
+        if (c.active_7d) { put('active', c.active_7d); }
+        put('finds7', a.finds_7d); put('rigs', m.rig_spots); put('commodities', m.commodities);
+        var bits = [];
+        if (r.furthest && r.furthest.system) {
+          bits.push('Furthest find from Sol: ' + r.furthest.system + ', ' + n(Math.round(r.furthest.ly)) + ' Ly');
+        }
+        if (r.top_commodities && r.top_commodities.length) {
+          bits.push('Found most: ' + r.top_commodities.slice(0, 3).map(function (t) { return t.commodity; }).join(', '));
+        }
+        if (m.first_find) {
+          var d = new Date(m.first_find + 'T00:00:00Z');
+          if (!isNaN(d)) {
+            bits.push('Mapping since ' + d.toLocaleDateString('en-GB', {day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC'}));
+          }
+        }
+        sec.querySelector('[data-stats="records"]').textContent = bits.join('  \u00b7  ');
+      }
+      function totals(s) {
+        put('deposits', s.deposits); put('sites', s.sites); put('bodies', s.bodies);
+        put('systems', s.systems); put('commanders', s.commanders); put('commodities', s.commodities);
+      }
+      ask(MAP + '/v1/stats').then(whole).catch(function () {
+        return ask(MAP + '/v1/map/summary').then(totals);
+      }).catch(function () { /* no answer: the section stays out of sight */ });
+    })();
+    </script>
+  </section>
 
   <section class="section" id="what">
     <div class="sec-head"><div><span class="label on">From a made-up session &middot; the commander and every number are invented</span><h2>What it does</h2></div></div>
@@ -506,7 +586,7 @@
           <li><b>What goes on the community map</b>: the deposits you mark &mdash; system, body, commodity, position, rigs and how rich &mdash; and the prices at markets you open.</li>
           <li><b>Every find carries your CMDR name</b>, so the leaderboard and the credit for a find are always right.</li>
           <li><b>Inara and Discord send nothing</b> until you switch them on and add your own key or webhook.</li>
-          <li><b>It is GPL-3.0.</b> The source is on <a href="https://github.com/TheAnnouncer/EDSMT">GitHub</a>, so you can read what it sends and when.</li>
+          <li><b>It is GPL-3.0.</b> The source is on <a href="https://github.com/RadioRaxxla/EDSMT">GitHub</a>, so you can read what it sends and when.</li>
         </ul>
       </div>
     </div>
@@ -525,7 +605,7 @@
         click, after making a backup of your finds and settings.</p>
         <p><b class="w">On Linux</b>, for Elite played through Proton, Lutris,
         Heroic or Bottles: <code>EDSMT-linux-x86_64.tar.gz</code> from the
-        <a href="https://github.com/TheAnnouncer/EDSMT/releases/latest">release page</a>
+        <a href="https://github.com/RadioRaxxla/EDSMT/releases/latest">release page</a>
         &mdash; unpack it and run <code>./EDSMT</code> &mdash; or <code>bash RUN.sh</code>
         from the source. It finds the game's journal in whichever Wine prefix you
         played in last.</p>
@@ -556,18 +636,21 @@
         <div class="kv"><span class="k">Account</span><span class="v ok">None</span></div>
       </div></div>
     </div>
+    <p class="note" data-hcs>Voice packs for Elite Dangerous: <a data-link="hcsStore" href="#" target="_blank" rel="noopener sponsored">HCS Voice Packs</a>. Affiliate link: Radio Raxxla earns a commission at no extra cost to you.</p>
   </section>
 
   <section class="section" id="whatsnew">
-    <div class="sec-head"><div><span class="label on">Latest build &middot; <!--VERSION-->1.10041<!--/VERSION--></span><h2>What changed</h2></div></div>
+    <div class="sec-head"><div><span class="label on">Latest build &middot; <!--VERSION-->1.2<!--/VERSION--></span><h2>What changed</h2></div></div>
     <!--WHATSNEW-->
-    <p>Fixes only. Every find carries its CMDR name, Inara updates work again on PCs where they had stopped, and updates to a deposit are seen on the community map as finds are.</p>
-    <h3>Fixed — every find carries your CMDR name, and Inara updates work again</h3>
-    <ul><li><b>A find never goes up without your CMDR name.</b> EDSMT opened part-way through a long game session could be reading a journal file that never says who is playing, and what it shared then had no name on it. It now looks back to the file that does say. A find marked before the name is known is held &mdash; &quot;Holding this find until the game says who is playing&quot; - kept if EDSMT is closed, and shared by itself the moment the name is known. From this version the community map takes no find without a name.</li><li><b>Inara updates that failed with &quot;certificate has expired&quot;.</b> Nothing was wrong with Inara or with your key. Windows keeps certificates after they run out, and on a PC that still held an out-of-date copy of one, EDSMT was handed that copy in place of the good one the site sends. It now leaves the run-out ones aside. The same fault could stop mining locations reaching EDDN.</li></ul>
+    <p>My sites becomes one data window for everything you have recorded, the map and the scope explain themselves, every deposit says how many tonnes are left, and importing from another mining tool is finished. Celestia has seventy new takes so she repeats herself less, EDSMT asks before it speaks, and it backs your data up at every start. Thanks to testers 2020HeinSite and SnazzyNinja, whose reports are behind many of these.</p>
+    <h3>New — one data window, a key to the map, tonnes left</h3>
+    <ul><li><b>My sites is your data window.</b> Every system you have recorded with its counts and the totals over the list. Open a system for its bodies grouped by ground, a body for its locations (one line each, and how far from you), a location for its deposits: top patch first, worked-out last, saying what they gave.</li><li><b>The deposit card.</b> Pick a deposit for its position, which way and how far it is from you, tonnes this time and left, price, when it was marked, and Guide me there, Share, Mark depleted, Copy position and Delete, with the location&#x27;s map picture beside it.</li><li><b>Guide me there, to any body.</b> The target is kept until you get there, across a restart. The window says in plain words where to go first, or why a deposit cannot be guided to. Stop guiding lets it go.</li><li><b>Your own marks.</b> Up or down on any logged location, kept on this PC only: up lists first in green, down last in red, press again to take it off.</li><li><b>A key for My sites</b> (Settings &gt; Keys, unbound to begin with, or a joystick button) brings it up over the game.</li><li><b>A key to the map.</b> The <b>?</b> in the map&#x27;s corner, the map&#x27;s right-click menu and Help open a key that says what every mark is.</li><li><b>A switch for each layer of the map and the scope.</b> Survey border, circles to drive, range rings, guided-survey points, gaps, the pointer and the lines between deposits: right-click the map, or Settings &gt; Overlay &gt; Map and scope.</li><li><b>Right-click a waypoint or a rig.</b> Remove a waypoint or skip the one you are driving to; pick a rig up or change its commodity without having to hit its square exactly.</li><li><b>The scope says more.</b> A scale bar, how far and which way your survey centre is, the ground swept in km2, and the zoom and rig planner keys beside the others. The zoom step is kept when you restart.</li><li><b>Lines between deposits</b>, with the distance, when switched on and zoomed in.</li><li><b>Skip this pin.</b> In the rig planner a key, a joystick button or <code>!rr skip</code> in chat points you at the next pin. <code>!rr signal</code>, <code>!rr border</code>, <code>!rr zoom</code> and <code>!rr plan</code> do what those keys do. Local chat is public: the guide lists every command.</li><li><b>Tonnes left, for everyone.</b> MINED OUT sends the tonnes the deposit gave, and every deposit says what deposits like it hold: your own figure first, otherwise the community&#x27;s range with how many reports are behind it, otherwise &quot;not measured yet&quot;. The tonnes of deposits you worked out before this version are sent once, on its first start.</li><li><b>Still there?</b> Driving onto a deposit you marked asks once, on the overlay and by voice: UPDATE or MINED OUT. Leave without answering and a small window at the next start lets you answer in one click. Each row says which deposit it is: its rigs, Amount and Density, where it lies in its location, how far it is from you and its position, and <b>Show</b> picks it in the main window. Two deposits of one commodity in one location no longer read alike.</li><li><b>The boxes fill themselves in.</b> Drive onto a deposit you marked and Commodity, Rigs, Amount and Density show what is recorded for it. UPDATE starts from there and changes only what you change, where before it wrote whatever the boxes still held from the last deposit.</li><li><b>Due a check.</b> Find has a seventh search: your deposits nobody has confirmed for a while, nearest first.</li><li><b>Checks count on the leaderboard.</b> An update is 2 points, mined out 3, a deposit found grown back 5, and the new Site checker ribbons count them.</li><li><b>Import from another mining tool, finished.</b> EDSMT finds the other tool&#x27;s file by itself and brings in tonnes, dates, good and bad marks and surveyed ground. Finds that tool had taken from other commanders are kept on this PC and never shared under your name. After a first import, new bookmarks are offered, never imported by themselves.</li><li><b>An Audio tab in Settings.</b> Voice Mode, the voice, the speaking rate, how much is said, reminders, comm effects, Test voice, What did it say?, spoken directions, the sonar and the rig warning&#x27;s sound, each with its note.</li><li><b>Flight controller and Radio Raxxla on-air speak for themselves.</b> Their Basic lines are recorded and come with EDSMT, free, like the Ship computer&#x27;s. The Flight controller is heard over your comms.</li><li><b>Seventeen new lines in every voice.</b> A deposit worth a lot (one of the five best-paying, or the best of all) when you mark it or drive onto it; a rich patch when you mark one in a top patch of three or more; how much is left when you drive onto one; best price for your cargo with the SELLING HERE flash; Rhino full in five minutes, ship one load from full, hold full; one of yours nearby due a check; Guide me there to another body; touchdown marking waypoint one; Skip this pin; an import finished; a new ribbon on the community map; your Twitch live status switched on or off. Each is said once for what it is about.</li><li><b>Still there? for other commanders&#x27; finds.</b> Drive onto one with none of yours under you and EDSMT asks, saying whose it is; UPDATE (still there) or MINED OUT goes on the community map for everyone. Find&#x27;s Due a check lists other commanders&#x27; finds on the bodies you have been to as well as yours.</li><li><b>How full each rig is.</b> Counted from the journal, a tonne at a time against the 12 a rig holds: the rigs note shows each rig&#x27;s count (8/12), and RIG 3 FULL flashes at 12. Exact when each rig is on its own commodity; with more than one rig on a commodity the count is an estimate and shows as ~8/12. Nothing reads the screen.</li><li><b>The session card in the weekly card&#x27;s style,</b> and it is what your Discord summary shows. Four big tiles (tonnes, credits, Cr/hr, merits), what was mined, the map and the time mined, on the weekly card&#x27;s dark glass and type. Session card is on for every webhook (switched on once for ones saved before), the card is redrawn with the sale when the summary is updated, and a sold session shows what it sold for, not the estimate.</li><li><b>Celestia&#x27;s comm sound goes by your ship&#x27;s size.</b> A small ship&#x27;s tight cockpit, a medium ship as before, a large ship&#x27;s bridge with a little room in it; the Rhino and on foot keep their own.</li><li><b>How long the Rhino and the ship take to fill.</b> In the Rhino, the STATUS box says when the Rhino will be full (72 t), when your ship will be full by its own cargo capacity, counting what the Rhino is carrying to it, and how long your Rhino loads take, each timed from its first tonne to 72 t with the average of the last five. One switch: Settings &gt; Overlay, &quot;STATUS line: Rhino and ship full in&quot;.</li><li><b>A fifth voice: Windows voice.</b> Windows&#x27; own speech and nothing else, with plain words and no recordings. It works on any PC, and it sounds flat and robotic beside the recorded voices.</li><li><b>Celestia says distances and directions herself.</b> With spoken directions on, &quot;Nearest deposit, two point four kilometres north-east&quot; is her own voice from start to finish. Every distance is recorded as a whole phrase, 288 of them with the sixteen compass points, so no number is pieced together word by word. Metres to the nearest ten, kilometres to a tenth, whole kilometres from ten; a hundred kilometres or more is spoken by Windows. The other voices say distances in Windows&#x27; voice for now.</li><li><b>Output device.</b> Pick which audio device the voice and the rig warning play on. If it is not connected the default is used and your choice is kept. The proximity sonar stays on the default device.</li><li><b>Do you want EDSMT to speak?</b> The first time you start, and once after this update, EDSMT asks before any voice is heard: Yes, No or Choose a voice.</li><li><b>Your live status for the Radio Raxxla Twitch bot.</b> Settings &gt; Sharing, off unless you switch it on. With it on the bot can answer <code>!system</code>, <code>!ship</code>, <code>!rank</code>, <code>!session</code> and <code>!edsmt</code> in your Twitch chat: your system and body (never a position, and not while streamer mode is hiding them), your ship, your ranks and how the session is going. Switched off, it is taken down at once.</li><li><b>A backup at every start.</b> Your settings and finds, in <code>EDTools\Backup\RadioRaxxla\EDSMT</code>, the newest 30 kept, with no keys or tokens in it.</li><li><b>Settings to a file and back</b>, with no keys in the file. <b>Export CSV</b> on Earnings and Find.</li><li><b>Help &gt; What did it say?</b> lists the last fifty spoken lines with their time.</li><li><b>Three more lines on STATUS</b>: SRV fuel, tonnes an hour and merits this session, each with its own switch. In the box as it comes they share one short line; a taller box gives each a row.</li><li><b>The portable build keeps the file an update replaced</b>: Help &gt; Go back to the previous version.</li><li><b>EDSMT in numbers</b> on the EDSMT page: deposits, mining locations, bodies, systems, commanders sharing and installs, counted by the community map when the page opens.</li></ul>
     <h3>Changed</h3>
-    <ul><li><b>Updates are seen on the community map.</b> Press UPDATE or MINED OUT on a deposit that is already on the map, or put its rigs or Density right, and it is posted in the Radio Raxxla Discord with your CMDR name and what changed, and kept in the map&#x27;s live list. Until now only a deposit&#x27;s first find was shown. This is on the map&#x27;s side, so it works with the version you already have.</li><li><b>The licences of the libraries EDSMT is built with</b> go with every copy, in <code>THIRD-PARTY-NOTICES.txt</code>: beside the program after an install, inside the single-file build, in the Linux download and in the source.</li><li><b>A release page on GitHub is short</b>: what the version is, in a few lines, and a link to these notes.</li><li><b>The wing link is no longer called beta</b> in Settings or the guide: it has been the finished thing since 1.10040.</li><li><b>The documents say what EDSMT does today.</b> SECURITY.md lists everything that leaves your PC and the one thing that listens on it (the OBS page, on your PC only, when you switch it on), and that updates are signed. The guide no longer says a correction stays on your PC (it goes to the community map), nor that a switch hides other commanders&#x27; finds (there is none).</li></ul>
+    <ul><li><b>You are white on the map, and a little larger.</b> The size is a setting; the colour is still in Settings &gt; Theme. The pointer to the next waypoint is a line with a dot, so it is not taken for you.</li><li><b>Waypoint 1 is LANDED</b>: where you touched down. Your ship may have left since. It is labelled, said once, and can be removed with a right-click.</li><li><b>A wingmate&#x27;s collected rig stays on the map, marked collected</b>, as it stays in the game until you leave the planet.</li><li><b>Worked-out marks stay.</b> Nothing takes a mark off on a timer. The first tonne refined at a worked-out deposit takes it off; once commanders have measured how long deposits take to come back, a worked-out deposit says when it is expected and then &quot;may be back &mdash; needs a check&quot;.</li><li><b>How long a hold counts as a rig placed is yours to set</b>: Settings &gt; Rigs &gt; Hold for, 1 to 5 seconds, 2 unless you change it.</li><li><b>The Powerplay tool and the Leaderboard no longer hold the window.</b> The search runs on its own, and the tables show twenty rows a page.</li><li><b>Celestia says more.</b> Seventy new takes of her most-heard lines: marking, borders, rigs down and home, sweeps, sessions, the wing. A line with more than one take is never said the same way twice running, and What did it say? shows the words of the take you heard. Her comm sound can be switched off on the Audio tab.</li><li><b>The tour</b> stays inside the EDSMT window and clear of the buttons it talks about, and its steps are up to date. The welcome has &quot;How to customise the map&quot;.</li><li><b>Earnings adds up your Rhinos</b>, and says plainly that wingmates&#x27; tonnes are not shared over the wing link.</li><li><b>Settings &gt; Your data</b> shows how many map pictures are saved and how much room they take.</li><li><b>The source lives at github.com/RadioRaxxla/EDSMT.</b> Every link names it; the old address redirects.</li><li><b>Help has a link to HCS Voice Packs.</b> It is an affiliate link: Radio Raxxla earns a commission at no extra cost to you.</li></ul>
+    <h3>Fixed</h3>
+    <ul><li><b>My sites: &quot;Last there&quot; said today for everything after an import.</b> An import is not a visit: a site that came from a file shows the date in the file, or none.</li><li><b>The portable EDSMT.exe after restarting itself</b> (&quot;Failed to remove temporary directory&quot;, then no voice). A copy the program starts for a new theme or after an update now unpacks its own files.</li><li><b>The stream card said &quot;Not mining yet&quot; with rigs down and working.</b> It says what you are doing, from the moment the rigs are down, and Discord&#x27;s Rich Presence says the same.</li><li><b>A voice that cannot speak says why.</b> Test voice waits a moment and then says either that the line was spoken or what stopped it.</li><li><b>A closed window takes its timers with it</b>, so a timer left behind can no longer set something else off.</li><li><b>The source zip holds the whole project.</b> The one for 1.10041 had left out nine files new in that release.</li></ul>
     <!--/WHATSNEW-->
-    <p class="note" style="margin-top:18px">Every earlier build: <a href="https://github.com/TheAnnouncer/EDSMT/blob/HEAD/CHANGELOG.md">the full changelog</a></p>
+    <p class="note" style="margin-top:18px">Every earlier build: <a href="https://github.com/RadioRaxxla/EDSMT/blob/HEAD/CHANGELOG.md">the full changelog</a></p>
   </section>
 
   <section class="section" id="faq">

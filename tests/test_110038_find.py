@@ -53,7 +53,7 @@ def section(title):
 FINDS = ["commodity", "min_rigs", "min_types", "seen", "within", "place",
          "hide_worked", "verified"]
 WANTED = {
-    "sites": FINDS, "intact": FINDS, "deposits": FINDS,
+    "sites": FINDS, "intact": FINDS, "deposits": FINDS, "due": ["commodity"],
     "prices": ["commodity", "from", "within", "place", "pad", "station", "carriers",
                "price_age", "min_price", "demand", "power_state", "power_side", "show"],
     "bodies": ["commodity", "within", "place"],
@@ -62,12 +62,13 @@ WANTED = {
     "powerplay": ["pp_power", "pp_goal", "pp_contested", "commodity", "within", "pad",
                   "demand", "price_age", "pp_state", "pp_show"],
 }
-LABELS = ["Sites", "Still there", "Deposits", "Sell prices", "Mining bodies", "Powerplay"]
+# 1.10042 (E3): "Due a check", read from your own records, is the seventh.
+LABELS = ["Sites", "Still there", "Deposits", "Sell prices", "Mining bodies", "Powerplay", "Due a check"]
 
 
 @section("the six searches, and the filters each one has")
 def _modes():
-    check("six modes, in the order the switch shows them",
+    check("the modes, in the order the switch shows them",
           [label for _key, label in FD.MODES] == LABELS, FD.MODES)
     check("a label or a key gives the mode; anything else is Sites",
           FD.mode_key("Sell prices") == "prices" and FD.mode_key("bodies") == "bodies"
@@ -262,7 +263,7 @@ def _layout():
     pump(4)
     labels = [str(b.cget("text")) for b in walk(win.mode_switch)
               if isinstance(b, A.ctk.CTkButton)]
-    check("a segmented switch with the six searches", isinstance(win.mode_switch,
+    check("a segmented switch with the searches", isinstance(win.mode_switch,
           A.ctk.CTkSegmentedButton) and labels == LABELS, labels)
     check("it opens on Sites, the first time", win.mode == "sites"
           and win.mode_switch.get() == "Sites", win.mode)

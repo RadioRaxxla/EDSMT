@@ -4,6 +4,207 @@ The version is in the app's title bar. Quote it on a bug report.
 
 ---
 
+## 1.2
+
+My sites becomes one data window for everything you have recorded, the map and
+the scope explain themselves, every deposit says how many tonnes are left, and
+importing from another mining tool is finished. Celestia has seventy new takes
+so she repeats herself less, EDSMT asks before it speaks, and it backs your
+data up at every start. Thanks to testers 2020HeinSite and SnazzyNinja, whose
+reports are behind many of these.
+
+### New — one data window, a key to the map, tonnes left
+
+- **My sites is your data window.** Every system you have recorded with its
+  counts and the totals over the list. Open a system for its bodies grouped by
+  ground, a body for its locations (one line each, and how far from you), a
+  location for its deposits: top patch first, worked-out last, saying what
+  they gave.
+- **The deposit card.** Pick a deposit for its position, which way and how far
+  it is from you, tonnes this time and left, price, when it was marked, and
+  Guide me there, Share, Mark depleted, Copy position and Delete, with the
+  location's map picture beside it.
+- **Guide me there, to any body.** The target is kept until you get there,
+  across a restart. The window says in plain words where to go first, or why a
+  deposit cannot be guided to. Stop guiding lets it go.
+- **Your own marks.** Up or down on any logged location, kept on this PC only:
+  up lists first in green, down last in red, press again to take it off.
+- **A key for My sites** (Settings > Keys, unbound to begin with, or a
+  joystick button) brings it up over the game.
+- **A key to the map.** The **?** in the map's corner, the map's right-click
+  menu and Help open a key that says what every mark is.
+- **A switch for each layer of the map and the scope.** Survey border, circles
+  to drive, range rings, guided-survey points, gaps, the pointer and the lines
+  between deposits: right-click the map, or Settings > Overlay > Map and
+  scope.
+- **Right-click a waypoint or a rig.** Remove a waypoint or skip the one you
+  are driving to; pick a rig up or change its commodity without having to hit
+  its square exactly.
+- **The scope says more.** A scale bar, how far and which way your survey
+  centre is, the ground swept in km2, and the zoom and rig planner keys beside
+  the others. The zoom step is kept when you restart.
+- **Lines between deposits**, with the distance, when switched on and zoomed
+  in.
+- **Skip this pin.** In the rig planner a key, a joystick button or `!rr skip`
+  in chat points you at the next pin. `!rr signal`, `!rr border`, `!rr zoom`
+  and `!rr plan` do what those keys do. Local chat is public: the guide lists
+  every command.
+- **Tonnes left, for everyone.** MINED OUT sends the tonnes the deposit gave,
+  and every deposit says what deposits like it hold: your own figure first,
+  otherwise the community's range with how many reports are behind it,
+  otherwise "not measured yet". The tonnes of deposits you worked out before
+  this version are sent once, on its first start.
+- **Still there?** Driving onto a deposit you marked asks once, on the overlay
+  and by voice: UPDATE or MINED OUT. Leave without answering and a small
+  window at the next start lets you answer in one click. Each row says which
+  deposit it is: its rigs, Amount and Density, where it lies in its location,
+  how far it is from you and its position, and **Show** picks it in the main
+  window. Two deposits of one commodity in one location no longer read alike.
+- **The boxes fill themselves in.** Drive onto a deposit you marked and
+  Commodity, Rigs, Amount and Density show what is recorded for it. UPDATE
+  starts from there and changes only what you change, where before it wrote
+  whatever the boxes still held from the last deposit.
+- **Due a check.** Find has a seventh search: your deposits nobody has
+  confirmed for a while, nearest first.
+- **Checks count on the leaderboard.** An update is 2 points, mined out 3, a
+  deposit found grown back 5, and the new Site checker ribbons count them.
+- **Import from another mining tool, finished.** EDSMT finds the other tool's
+  file by itself and brings in tonnes, dates, good and bad marks and surveyed
+  ground. Finds that tool had taken from other commanders are kept on this PC
+  and never shared under your name. After a first import, new bookmarks are
+  offered, never imported by themselves.
+- **An Audio tab in Settings.** Voice Mode, the voice, the speaking rate, how
+  much is said, reminders, comm effects, Test voice, What did it say?, spoken
+  directions, the sonar and the rig warning's sound, each with its note.
+- **Flight controller and Radio Raxxla on-air speak for themselves.** Their
+  Basic lines are recorded and come with EDSMT, free, like the Ship
+  computer's. The Flight controller is heard over your comms.
+- **Seventeen new lines in every voice.** A deposit worth a lot (one of the
+  five best-paying, or the best of all) when you mark it or drive onto it; a
+  rich patch when you mark one in a top patch of three or more; how much is
+  left when you drive onto one; best price for your cargo with the SELLING
+  HERE flash; Rhino full in five minutes, ship one load from full, hold full;
+  one of yours nearby due a check; Guide me there to another body; touchdown
+  marking waypoint one; Skip this pin; an import finished; a new ribbon on
+  the community map; your Twitch live status switched on or off. Each is said
+  once for what it is about.
+- **Still there? for other commanders' finds.** Drive onto one with none
+  of yours under you and EDSMT asks, saying whose it is; UPDATE (still there)
+  or MINED OUT goes on the community map for everyone. Find's Due a check
+  lists other commanders' finds on the bodies you have been to as well as
+  yours.
+- **How full each rig is.** Counted from the journal, a tonne at a time
+  against the 12 a rig holds: the rigs note shows each rig's count (8/12),
+  and RIG 3 FULL flashes at 12. Exact when each rig is on its own
+  commodity; with more than one rig on a commodity the count is an estimate
+  and shows as ~8/12. Nothing reads the screen.
+- **The session card in the weekly card's style,** and it is what your
+  Discord summary shows. Four big tiles (tonnes, credits, Cr/hr, merits),
+  what was mined, the map and the time mined, on the weekly card's dark
+  glass and type. Session card is on for every webhook (switched on once for
+  ones saved before), the card is redrawn with the sale when the summary is
+  updated, and a sold session shows what it sold for, not the estimate.
+- **Celestia's comm sound goes by your ship's size.** A small ship's tight
+  cockpit, a medium ship as before, a large ship's bridge with a little room
+  in it; the Rhino and on foot keep their own.
+- **How long the Rhino and the ship take to fill.** In the Rhino, the STATUS
+  box says when the Rhino will be full (72 t), when your ship will be full by
+  its own cargo capacity, counting what the Rhino is carrying to it, and how
+  long your Rhino loads take, each timed from its first tonne to 72 t with
+  the average of the last five. One switch: Settings > Overlay, "STATUS line:
+  Rhino and ship full in".
+- **A fifth voice: Windows voice.** Windows' own speech and nothing else,
+  with plain words and no recordings. It works on any PC, and it sounds flat
+  and robotic beside the recorded voices.
+- **Celestia says distances and directions herself.** With spoken directions
+  on, "Nearest deposit, two point four kilometres north-east" is her own
+  voice from start to finish. Every distance is recorded as a whole phrase,
+  288 of them with the sixteen compass points, so no number is pieced
+  together word by word. Metres to the nearest ten, kilometres to a tenth,
+  whole kilometres from ten; a hundred kilometres or more is spoken by
+  Windows. The other voices say distances in Windows' voice for now.
+- **Output device.** Pick which audio device the voice and the rig warning
+  play on. If it is not connected the default is used and your choice is kept.
+  The proximity sonar stays on the default device.
+- **Do you want EDSMT to speak?** The first time you start, and once after
+  this update, EDSMT asks before any voice is heard: Yes, No or Choose a
+  voice.
+- **Your live status for the Radio Raxxla Twitch bot.** Settings > Sharing,
+  off unless you switch it on. With it on the bot can answer `!system`,
+  `!ship`, `!rank`, `!session` and `!edsmt` in your Twitch chat: your system
+  and body (never a position, and not while streamer mode is hiding them),
+  your ship, your ranks and how the session is going. Switched off, it is
+  taken down at once.
+- **A backup at every start.** Your settings and finds, in
+  `EDTools\Backup\RadioRaxxla\EDSMT`, the newest 30 kept, with no keys or
+  tokens in it.
+- **Settings to a file and back**, with no keys in the file. **Export CSV** on
+  Earnings and Find.
+- **Help > What did it say?** lists the last fifty spoken lines with their
+  time.
+- **Three more lines on STATUS**: SRV fuel, tonnes an hour and merits this
+  session, each with its own switch. In the box as it comes they share one
+  short line; a taller box gives each a row.
+- **The portable build keeps the file an update replaced**: Help > Go back to
+  the previous version.
+- **EDSMT in numbers** on the EDSMT page: deposits, mining locations, bodies,
+  systems, commanders sharing and installs, counted by the community map when
+  the page opens.
+
+### Changed
+
+- **You are white on the map, and a little larger.** The size is a setting;
+  the colour is still in Settings > Theme. The pointer to the next waypoint is
+  a line with a dot, so it is not taken for you.
+- **Waypoint 1 is LANDED**: where you touched down. Your ship may have left
+  since. It is labelled, said once, and can be removed with a right-click.
+- **A wingmate's collected rig stays on the map, marked collected**, as it
+  stays in the game until you leave the planet.
+- **Worked-out marks stay.** Nothing takes a mark off on a timer. The first
+  tonne refined at a worked-out deposit takes it off; once commanders have
+  measured how long deposits take to come back, a worked-out deposit says when
+  it is expected and then "may be back - needs a check".
+- **How long a hold counts as a rig placed is yours to set**: Settings > Rigs
+  > Hold for, 1 to 5 seconds, 2 unless you change it.
+- **The Powerplay tool and the Leaderboard no longer hold the window.** The
+  search runs on its own, and the tables show twenty rows a page.
+- **Celestia says more.** Seventy new takes of her most-heard lines: marking,
+  borders, rigs down and home, sweeps, sessions, the wing. A line with more
+  than one take is never said the same way twice running, and What did it
+  say? shows the words of the take you heard. Her comm sound can be switched
+  off on the Audio tab.
+- **The tour** stays inside the EDSMT window and clear of the buttons it talks
+  about, and its steps are up to date. The welcome has "How to customise the
+  map".
+- **Earnings adds up your Rhinos**, and says plainly that wingmates' tonnes
+  are not shared over the wing link.
+- **Settings > Your data** shows how many map pictures are saved and how much
+  room they take.
+- **The source lives at github.com/RadioRaxxla/EDSMT.** Every link names it;
+  the old address redirects.
+- **Help has a link to HCS Voice Packs.** It is an affiliate link: Radio
+  Raxxla earns a commission at no extra cost to you.
+
+### Fixed
+
+- **My sites: "Last there" said today for everything after an import.** An
+  import is not a visit: a site that came from a file shows the date in the
+  file, or none.
+- **The portable EDSMT.exe after restarting itself** ("Failed to remove
+  temporary directory", then no voice). A copy the program starts for a new
+  theme or after an update now unpacks its own files.
+- **The stream card said "Not mining yet" with rigs down and working.** It
+  says what you are doing, from the moment the rigs are down, and Discord's
+  Rich Presence says the same.
+- **A voice that cannot speak says why.** Test voice waits a moment and then
+  says either that the line was spoken or what stopped it.
+- **A closed window takes its timers with it**, so a timer left behind can no
+  longer set something else off.
+- **The source zip holds the whole project.** The one for 1.10041 had left out
+  nine files new in that release.
+
+---
+
 ## 1.10041
 
 Fixes only. Every find carries its CMDR name, Inara updates work again on PCs

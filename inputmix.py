@@ -359,11 +359,19 @@ def run_command(app, cmd):
     elif action == "undo":
         undo_last(app, "chat")
         speak(app, "chat_ok")
-    elif action in ("rig_down", "rig_up", "all_up", "centre"):
+    elif action in ("rig_down", "rig_up", "all_up", "centre",
+                    "signal", "border", "zoom", "plan", "skip_pin"):
+        # 1.10042: signal, border, zoom, plan and skip_pin run what their
+        # keys run.
         run = {"rig_down": lambda: app.drop_rigs(cmd.get("rig")),
                "rig_up": lambda: app.rig_up(cmd.get("rig")),
-               "all_up": app.rigs_up,
-               "centre": app.set_survey_centre}[action]
+               "all_up": lambda: app.rigs_up(),
+               "centre": lambda: app.set_survey_centre(),
+               "signal": lambda: app.log_location(),
+               "border": lambda: app.set_survey_border(),
+               "zoom": lambda: app.cycle_scope_zoom(),
+               "plan": lambda: app.trace_key(),
+               "skip_pin": lambda: app.skip_pin()}[action]
         app._flashed = False
         run()
         if not app.__dict__.get("_flashed"):
@@ -482,6 +490,12 @@ DEFAULT_FIRE = {"primary": [{"device": "Mouse", "key": "Mouse_1", "modifiers": [
                 "secondary": [{"device": "Mouse", "key": "Mouse_2", "modifiers": []}]}
 
 
+def hold_for(settings):
+    """How many seconds of hold count as a rig placed, from Settings (1 to 5,
+    2 unless set)."""
+    return IND.hold_seconds((settings or {}).get("long_press_seconds"))
+
+
 def fire_choice(settings):
     """"primary" or "secondary". Older settings said "left", "right" or
     "learn", and read as the fire button those were on the game's defaults."""
@@ -527,6 +541,8 @@ def mouse_tick(app):
     delay = IND.POLL_MS
     try:
         down = st.reader.any_down(rig_inputs(app))
+        # Read every look, so a change in Settings needs no restart.
+        st.hold.hold_s = hold_for(settings_of(app))
         if st.hold.step(down, st.mouse.elite_in_front(), st.clock()):
             press(app, "rigs")
     except Exception as exc:

@@ -142,7 +142,7 @@ def _links():
           labels == ["User guide", "Report a bug", "Changelog", "Quick start"], labels)
     for label, target, note in WL.USEFUL_LINKS:
         ok = target == WL.TOUR or str(target).startswith(
-            "https://github.com/TheAnnouncer/EDSMT")
+            "https://github.com/RadioRaxxla/EDSMT")
         check("%s goes somewhere: %s" % (label, target), ok and note, (target, note))
     targets = dict((label, target) for label, target, _n in WL.USEFUL_LINKS)
     check("the guide is docs/GUIDE.md and the changelog CHANGELOG.md",
@@ -370,7 +370,10 @@ if HAVE_DISPLAY:
     STATE = {"app": None}
 
     def write_settings(**extra):
-        data = {"asked_to_share": True, "tour_done": True, "journal_dir": JOURNALS}
+        # 1.10042: voice_asked - the voice question (test_110042_voiceask.py)
+        # comes ahead of the welcome, and is not what these checks are about.
+        data = {"asked_to_share": True, "tour_done": True, "journal_dir": JOURNALS,
+                "voice_asked": True}
         data.update(extra)
         with open(A.SETTINGS_FILE, "w", encoding="utf-8") as fh:
             json.dump(data, fh)
@@ -450,7 +453,7 @@ if HAVE_DISPLAY:
         check("it wears the EDSMT logo too, not the toolkit's",
               win.icon_worn == WORN_HERE, win.icon_worn)
         check("Welcome to EDSMT, with the version beside it",
-              "Welcome to EDSMT" in words and A.APP_VERSION in words, words[:8])
+              "Welcome to EDSMT" in words and A.SHOWN_VERSION in words, words[:8])
         check("and what it is in one line",
               "Surface mining for the Rhino SRV, read from your journal" in words)
         check("the diagram is drawn on its canvas", len(win.diagram.find_all()) >= 23,
@@ -479,6 +482,12 @@ if HAVE_DISPLAY:
               and button(win, "Ko-fi") is None, [t for t in words if "Donate" in t or "Ko" in t])
         button(win, "Donate with PayPal").invoke()
         check("which opens PayPal in the browser", OPENED[-1:] == [PAYPAL], OPENED)
+        # 1.10042: the author's affiliate link, with what it is in sight.
+        check("an HCS Voice Packs button, and beside it the words saying it is an affiliate link",
+              button(win, WL.HCS_LABEL) is not None and WL.HCS_WORDS in words,
+              [t for t in words if "HCS" in t or "ffiliate" in t])
+        button(win, WL.HCS_LABEL).invoke()
+        check("which opens the HCS store with the author's reference", OPENED[-1:] == [WL.HCS_URL], OPENED[-1:])
         for label, target, _note in WL.USEFUL_LINKS:
             if target == WL.TOUR:
                 continue
@@ -491,7 +500,7 @@ if HAVE_DISPLAY:
               "CHECK THE SETTINGS" in words and words.index("CHECK THE SETTINGS")
               < words.index("ONE MAP, EVERYBODY'S"), words[:14])
         check("what's new in this version, from the patch notes",
-              ("WHAT'S NEW IN " + A.APP_VERSION) in words
+              ("WHAT'S NEW IN " + A.SHOWN_VERSION) in words
               and all(("\u2022  " + h) in words for h in win.headlines)
               and len(win.headlines) >= 5, (win.headlines, words[:30]))
         notes = button(win, "Full patch notes")
@@ -616,8 +625,15 @@ if HAVE_DISPLAY:
         check("the top bar has a Help button", isinstance(app.btn_help, A.ctk.CTkButton))
         labels = [app.help_menu.entrycget(i, "label")
                   for i in range(app.help_menu.index("end") + 1)]
-        check("its menu: Welcome, Show me round, User guide, Report a bug, Changelog",
-              labels == ["Welcome", "Show me round", "User guide", "Report a bug", "Changelog"],
+        # 1.10042: the map's key is on it too, after the tour, and it ends
+        # with the voice packs link, named for what it is.
+        check("its menu: Welcome, Show me round, Map key, User guide, Report a bug, Changelog, What did it say?, Voice packs, Keeping the map right",
+              labels == ["Welcome", "Show me round", "Map key - how to customise the map",
+                         "User guide", "Report a bug", "Changelog",
+                         "What did it say? - the last spoken lines",
+                         "Voice packs: HCS (affiliate link)",
+                         # 1.10042: the how-to for checking the map, last.
+                         "Keeping the map right - checking deposits"],
               labels)
         app.help_menu.invoke(0)
         check("Welcome opens it", settle_until(lambda: len(welcomes()) == 1))
@@ -626,7 +642,7 @@ if HAVE_DISPLAY:
         welcomes()[0].answer(True)
         settle_until(lambda: not welcomes(), 3)
         OPENED.clear()
-        app.help_menu.invoke(4)
+        app.help_menu.invoke(5)
         check("Changelog opens the changelog", OPENED == [dict(
             (l, t) for l, t, _n in WL.USEFUL_LINKS)["Changelog"]], OPENED)
         toured = []
@@ -739,7 +755,7 @@ if HAVE_DISPLAY:
     @section("a brand-new install: one window, the map said, then the tour")
     def _first():
         with open(A.SETTINGS_FILE, "w", encoding="utf-8") as fh:
-            json.dump({"journal_dir": JOURNALS}, fh)
+            json.dump({"journal_dir": JOURNALS, "voice_asked": True}, fh)   # 1.10042: see write_settings
         app = start()
         toured = []
         app.start_tour = lambda force=False: toured.append(force) or True

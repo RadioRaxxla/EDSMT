@@ -394,9 +394,11 @@ check("an answer that took nothing does not",
                           "0 shared, 0 already known") is False)
 
 print("== the tables draw fast ==")
+# 1.10042 (A3): the Powerplay grids that drew a row's buttons as labels are
+# the tree view now, twenty rows a page; Find's row lines still use labels.
 check("row buttons are plain Tk labels, not a toolkit button each",
-      "def mini_button(" in SRC and "row_buttons(self.table, index" in SRC
-      and 'ctk.CTkButton(box, text=label, width=58' not in SRC)
+      "def mini_button(" in SRC and "mini_button(line, text, command, lit)" in SRC
+      and 'ctk.CTkButton(box, text=label, width=58' not in SRC and "class PagedTable" in SRC)
 check("My sites draws a page at a time", SRC.count("def _draw_page(self):") >= 2)
 check("finished searches are picked up on the fast tick",
       SRC.split("    def fast_tick(self):")[1].split("\n    def ")[0]

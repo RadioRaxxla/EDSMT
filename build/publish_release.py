@@ -25,9 +25,10 @@ import tempfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "build"))
-from release_notes import brief, entry  # noqa: E402
+from release_notes import brief, entry, shown  # noqa: E402
+import source_zip  # noqa: E402
 
-REPO_NAME = "TheAnnouncer/EDSMT"
+REPO_NAME = "RadioRaxxla/EDSMT"
 FILES = ("EDSMT-Setup.exe", "EDSMT.exe", "EDSMT-source.zip")
 KINDS = {"installer": "EDSMT-Setup.exe", "portable": "EDSMT.exe"}
 
@@ -69,23 +70,39 @@ def problems(upload):
             out.append("%s is not the file version.json describes" % name)
     if entry(version) is None:
         out.append("CHANGELOG.md has no entry for %s" % version)
+    out += source_problems(upload)
     return out
 
 
+def source_problems(upload, repo=REPO):
+    """The source zip has to hold the whole project as it is now: 1.10041's
+    was made before that release's new files were added, and went out
+    without them. [] when it is whole, or when this is not a repository."""
+    path = os.path.join(upload, "EDSMT-source.zip")
+    if not os.path.isfile(path):
+        return []                       # said already, above
+    gone = source_zip.missing(path, repo)
+    if not gone:
+        return []
+    return ["EDSMT-source.zip is missing %d of the project's files (%s%s) - run BUILD.bat again"
+            % (len(gone), ", ".join(gone[:3]), ", ..." if len(gone) > 3 else "")]
+
+
 def commands(version, exists, notes_path, upload):
-    """The gh commands that publish `version`, in order."""
-    tag = "v" + version
+    """The gh commands that publish `version`, in order. The tag and the
+    title carry the version as people read it (v1.2, "EDSMT 1.2")."""
+    tag = "v" + shown(version)
     files = [os.path.join(upload, name) for name in FILES]
     if exists:
         return [["gh", "release", "edit", tag, "-R", REPO_NAME,
-                 "--title", "EDSMT " + version, "--notes-file", notes_path],
+                 "--title", "EDSMT " + shown(version), "--notes-file", notes_path],
                 ["gh", "release", "upload", tag, "-R", REPO_NAME, "--clobber"] + files]
     return [["gh", "release", "create", tag, "-R", REPO_NAME, "--verify-tag",
-             "--title", "EDSMT " + version, "--notes-file", notes_path] + files]
+             "--title", "EDSMT " + shown(version), "--notes-file", notes_path] + files]
 
 
 def release_exists(version, run=subprocess.run):
-    result = run(["gh", "release", "view", "v" + version, "-R", REPO_NAME],
+    result = run(["gh", "release", "view", "v" + shown(version), "-R", REPO_NAME],
                  capture_output=True, text=True)
     return result.returncode == 0
 
@@ -102,7 +119,7 @@ def main(argv, run=subprocess.run, gh="gh"):
     notes = tempfile.NamedTemporaryFile("w", encoding="utf-8", newline="\n",
                                         suffix=".md", delete=False)
     with notes:
-        notes.write(brief(entry(version), version))
+        notes.write(brief(entry(version), shown(version)))
     todo = commands(version, exists, notes.name, upload)
     for cmd in todo:
         cmd[0] = gh
@@ -117,7 +134,7 @@ def main(argv, run=subprocess.run, gh="gh"):
         if result.returncode != 0:
             print("  FAILED: %s\n%s" % (" ".join(cmd[:4]), result.stderr.strip()))
             return 1
-    print("EDSMT %s published: %s" % (version, ", ".join(FILES)))
+    print("EDSMT %s published: %s" % (shown(version), ", ".join(FILES)))
     return 0
 
 

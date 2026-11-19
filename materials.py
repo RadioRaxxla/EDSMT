@@ -53,3 +53,16 @@ def hidden_from(ticked, every):
     """What to keep in settings: every name not ticked."""
     chosen = {SV.fold(name) for name in ticked or ()}
     return [name for name in every if SV.fold(name) not in chosen]
+
+
+# 1.10042: "Worth mining only" in the picker - the materials whose best price
+# known (a market you opened, else the published average) is at or over
+# this many credits a tonne.
+WORTH_LINE_CR = 100000
+
+
+def worth_mining(names, prices=None, line=WORTH_LINE_CR):
+    """The names worth a Rhino trip at the prices known now: those whose
+    best known price is at or over `line`. A material with no price known
+    is left out, not guessed at."""
+    return [name for name in names or [] if SV.price_of(name, prices) >= float(line)]

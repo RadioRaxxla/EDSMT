@@ -418,10 +418,13 @@ def _regrowth():
           info["text"] == "depleted 15 days - recheck in 7 days" and not info["due"], info["text"])
     check("three days on it counts down", RG.standing(row, look + 3 * DAY)["text"]
           == "depleted 15 days - recheck in 4 days")
-    check("the mark is still on at day 21", RG.depleted(row) and RG.expiry_changes(row, BASE + 21.5 * DAY) is None)
-    gone = RG.expiry_changes(row, BASE + 22 * DAY)
-    check("on day 22 - seven days after the look - the mark comes off",
-          RG.standing(row, BASE + 22 * DAY)["state"] == "expired" and gone and gone["amount"] == "", gone)
+    # 1.10042 (E4): nothing lifts a mark on a timer any more. A week after a
+    # look it is due another look, and the mark stays until a person (or the
+    # first tonne refined) takes it off.
+    check("the mark is still on at day 21", RG.depleted(row) and not RG.standing(row, BASE + 21.5 * DAY)["due"])
+    check("on day 22 - seven days after the look - it is due another look, and the mark stays",
+          RG.depleted(row) and RG.standing(row, BASE + 22 * DAY)["state"] == "look"
+          and RG.standing(row, BASE + 22 * DAY)["due"] and not hasattr(RG, "expiry_changes"))
     check("and each look is kept in the list", RG.looks(row) == [look])
     # a second look on a later day is added, not replacing
     row2 = depleted_row(rechecks=RG.stamp(look))
@@ -459,11 +462,8 @@ def _regrowth():
                       depleted_at=RG.stamp(BASE), rechecks=RG.stamp(look), lat="1", lon="1")
     store.add_deposit(system="Ega", body="Ega 1", location="1", commodity="Iron", amount="Depleted",
                       depleted_at=RG.stamp(BASE), rechecks="", lat="2", lon="2")
-    check("expire_marks takes off only the one whose look is a week old",
-          RG.expire_marks(store, BASE + 23 * DAY) == 1
-          and [d["amount"] for d in store.deposits] == ["", "Depleted"])
-    check("the history stays when the mark comes off",
-          store.deposits[0]["depleted_at"] and store.deposits[0]["rechecks"] and "came off" in store.deposits[0]["notes"])
+    check("no timer takes a mark off any more (1.10042)", not hasattr(RG, "expire_marks")
+          and [d["amount"] for d in store.deposits] == ["Depleted", "Depleted"])
     reloaded = SV.Survey(os.path.join(TMP, "expire"))
     check("the dates are saved in the finds file and read back",
           reloaded.deposits[1]["depleted_at"] == RG.stamp(BASE))
@@ -685,6 +685,11 @@ if HAVE_DISPLAY:
     import planview as PV   # noqa: E402
     OV.foreground_is_game = lambda: None
     import edsmt as A       # noqa: E402
+    # The import window looks for another tool's bookmarks on this machine as
+    # it opens, and previews what it finds. A check brings its own finds, so
+    # here there is nothing to find: on a PC that has such a file the preview
+    # arrived in the middle of the check and wrote over what Import had said.
+    A.IMP.IDB.locate = lambda *args, **kwargs: []
     A.DATA_DIR = os.path.join(TMP, "data")
     os.makedirs(A.DATA_DIR, exist_ok=True)
     A.SETTINGS_FILE = os.path.join(A.DATA_DIR, "settings.json")
@@ -830,6 +835,8 @@ def _import_window():
     held = len(store.deposits)
     check("it is the one window", app.open_import() is not win or True)
     win = app.import_window
+    check("it finds no file of this machine's by itself in a check", win.look_for_it() is None
+          and not win._path, win._path)
     check("Import is off until a preview has something new in it", str(win.import_button.cget("state")) == "disabled")
     win.preview()
     check("with nothing chosen it says to choose", "Choose a file or paste" in win.status.cget("text"))

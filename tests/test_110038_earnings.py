@@ -301,19 +301,28 @@ def _power_window():
     win = app.open_powerplay()
     pump(4)
     win.show_page(0)
-    pump(4)
+    # 1.10042 (A3): the record is searched off the window's thread and the
+    # page is the tree view, twenty rows a page; wait for the answer.
+    end = time.time() + 15
+    while time.time() < end and (win.searching() or not win.count_grid.rows):
+        pump(1)
+        time.sleep(0.02)
+    pump(2)
     rows = PW.system_rows(app.powerbook, win.app.power_view(None, None)["origin"], None)
     expand = next(r for r in rows if r["system"] == "Open Near")
-    cells = [w for w in labels_in(win.count_grid.table) if text_of(w) == expand["brief"]]
-    check("the Why cell shows the few words: %r" % expand["brief"], len(cells) == 1,
-          [text_of(w) for w in labels_in(win.count_grid.table)][:16])
-    check("not the sentence", not any(text_of(w) == expand["why"]
-                                      for w in labels_in(win.count_grid.table)))
-    check("the sentence is the cell's tooltip",
-          cells and getattr(cells[0], "_edsmt_tip", None) == expand["why"])
-    line = next(A.GridTable.line_of(c) for c in win.count_grid.rows if c[0][0] == "Open Near")
+    grid = win.count_grid
+    shown = [c[0][0] for c in grid.shown()]
+    texts = grid.table.texts()
+    check("the Why cell shows the few words: %r" % expand["brief"], expand["brief"] in texts,
+          sorted(texts)[:16])
+    check("not the sentence", expand["why"] not in texts)
+    why = grid.headers.index("Why")
+    check("the sentence is the cell's tooltip", "Open Near" in shown
+          and grid.table.cell_text(shown.index("Open Near"), why) == (expand["brief"], expand["why"]),
+          grid.table.cell_text(shown.index("Open Near"), why) if "Open Near" in shown else shown)
+    line = next(A.PagedTable.line_of(c) for c in grid.rows if c[0][0] == "Open Near")
     check("Copy on the row takes the whole sentence", expand["why"] in line, line)
-    check("and so does Copy all", expand["why"] in win.count_grid.as_text())
+    check("and so does Copy all", expand["why"] in grid.as_text())
 
 
 @section("Powerplay: its four filters are on Where it counts, and only there")

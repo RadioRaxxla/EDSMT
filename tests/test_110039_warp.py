@@ -409,13 +409,18 @@ print("== no shape: exactly what 1.10038 drew ==")
 # 1.10040 (#304): the commander's chevron on the radar and the deposit card
 # carries the tag "me", so it can wear a marker colour of its own. The same
 # points, the same order, nothing added - re-pinned for those four only.
+# 1.10042: on the radar the survey border, the circles to drive, the range
+# rings, GAP and SWEPT carry a tag each (every layer has a switch now), and
+# the commander's chevron is a quarter larger, as a new install draws it.
+# Checked call for call against the tree before: the same 56 and 63 calls in
+# the same order, nothing added, nothing moved - re-pinned for those two.
 FLAT_1_10038 = {
     "deposit locked": "fd370cc7ecdb9a6fadc3/61",
     "deposit unlocked": "1a92922b2968b1ccc710/68",
     "guide locked": "a4000a57e1baee0472bb/21",
     "guide unlocked": "d7c3349cd219719969a4/28",
-    "radar locked": "394f79a4adc759efb85b/56",
-    "radar unlocked": "f98ac7e14c6f42cabecc/63",
+    "radar locked": "fcf7eecebbc13a04a17e/56",
+    "radar unlocked": "29c2a3d2e8310dbbd0f4/63",
     "status locked": "3d277aa62b142048f927/37",
     "status unlocked": "bf5d0f2fe66effa81e02/41",
     "strip locked": "bb034b37f3cbc48db4fa/27",

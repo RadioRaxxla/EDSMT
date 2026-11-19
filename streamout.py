@@ -166,11 +166,63 @@ def _colours(given):
     return out
 
 
+def _rig_kinds(rig_types):
+    """The commodities rigs stand on, the one with most rigs first."""
+    counts = {}
+    try:
+        names = list(rig_types or [])
+    except TypeError:
+        return []
+    for name in names:
+        name = SV.canonical(str(name or "").strip()) if name else ""
+        if name and name.lower() != "unknown":
+            counts[name] = counts.get(name, 0) + 1
+    return [name for name, _n in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
+
+
+def _refined_kinds(mined):
+    """What has been refined, most tonnes first."""
+    rows = []
+    try:
+        items = list(dict(mined or {}).items())
+    except (TypeError, ValueError):
+        return []
+    for name, count in items:
+        name = SV.canonical(name or "")
+        if name and _whole(count) > 0:
+            rows.append((-_whole(count), name))
+    return [name for _n, name in sorted(rows)]
+
+
+def mining_now(mined=None, rig_types=None):
+    """What is being mined: what the rigs stand on, the one with most rigs
+    first; where nobody said what they are on, what has been refined."""
+    return (_rig_kinds(rig_types) or _refined_kinds(mined))[:MINING_SHOWN]
+
+
+def doing_now(mined=None, rig_types=None, rigs_down=0, in_rhino=False):
+    """What the commander is doing, as the one line a stream shows, or "".
+
+    Rigs down on a deposit are mining it from the moment they go down, so
+    the line does not wait for the first tonne: "Mining Iridium". In the
+    Rhino with no rig down: "Surveying". Out of the Rhino with nothing
+    down there is nothing to say, and the line is left out. Never raises.
+    """
+    if _whole(rigs_down) > 0 or _rig_kinds(rig_types):
+        kinds = mining_now(mined, rig_types)
+        return ("Mining " + ", ".join(kinds)) if kinds else "Mining"
+    return "Surveying" if in_rhino is True or in_rhino == 1 else ""
+
+
 def stream_state(cmdr="", system="", body="", mined=None, seconds=0, running=False,
                  paused=False, cr_hr=0, merits=None, merits_estimated=False,
                  rigs_down=0, near=None, find=None, colours=None, hide=None, now=None,
-                 version=""):
+                 version="", rig_types=None, in_rhino=False):
     """What /state.json says, from plain values. Never raises.
+
+    `rig_types` is what each rig that is down stands on and `in_rhino`
+    whether the commander is driving: with `rigs_down` they make `doing`,
+    the line that says what is happening now (1.10042).
 
     `mined` is {commodity: tonnes} this session, `seconds` the session's
     time so far, `near` the survey's near rows (only the nearest deposit's
@@ -208,7 +260,10 @@ def stream_state(cmdr="", system="", body="", mined=None, seconds=0, running=Fal
                     "seconds": seconds, "clock": clock_text(seconds)},
         "tonnes": tonnes,
         "tonnes_total": sum(row["tonnes"] for row in tonnes),
-        "mining": [row["commodity"] for row in tonnes[:MINING_SHOWN]],
+        # 1.10042: what the rigs stand on when the app says; what has been
+        # refined, as before, when it does not.
+        "mining": mining_now(mined, rig_types),
+        "doing": doing_now(mined, rig_types, rigs_down, in_rhino),
         "cr_hr": rate,
         "cr_hr_text": "{:,}".format(rate),
         "merits": earned or None,
@@ -353,8 +408,11 @@ _VIEWER_STYLE = """body { font-size: 22px; }
 _VIEWER_PAINT = """  function paint(s) {
     theme(s, 0.85);
     hud.appendChild(el("div", "cmdr", cmdr(s) || "EDSMT"));
-    var mining = (s.mining || []).join(", ");
-    hud.appendChild(el("div", "what", mining ? "Mining " + mining : "Not mining yet"));
+    var doing = String(s.doing || "");
+    if (doing && s.rigs_down && doing.indexOf("Mining") === 0) {
+      doing += " - " + s.rigs_down + (s.rigs_down === 1 ? " rig" : " rigs");
+    }
+    if (doing) { hud.appendChild(el("div", "what", doing)); }
     var body = String(s.body || ""), system = String(s.system || "");
     var where = body || system;
     if (body && system && body.toLowerCase().indexOf(system.toLowerCase()) !== 0) { where = body + " / " + system; }

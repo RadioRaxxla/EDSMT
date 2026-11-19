@@ -33,7 +33,7 @@ signed. More info, then Run anyway. SECURITY.md explains that in full.
 """
 
 
-REPO_NAME = "TheAnnouncer/EDSMT"
+REPO_NAME = "RadioRaxxla/EDSMT"
 NOTES_URL = "https://github.com/" + REPO_NAME + "/blob/v%s/CHANGELOG.md"
 BRIEF_MOST = 8          # headings listed before "and N more"
 BRIEF_CHARS = 1500      # the whole of the short notes, at most
@@ -84,6 +84,18 @@ def brief(body, version):
     return top + tail
 
 
+def shown(version):
+    """The version as people read it, as edonline.shown_version: 1.20000 is
+    1.2 and 1.20100 is 1.201; before 1.20000 as it is. The tag, the release's
+    title and the patch notes' heading use it."""
+    text = str(version or "").strip()
+    head, dot, tail = text.rpartition(".")
+    if not dot or not head or not tail.isdigit() or not head.isdigit() \
+            or (int(head), int(tail)) < (1, 20000):
+        return text
+    return "%s.%s" % (head, tail.rstrip("0") or "0")
+
+
 def built_version():
     """The version the tree says it is, or ""."""
     found = re.search(r'APP_VERSION\s*=\s*"([\d.]+)"', io.open(
@@ -97,7 +109,7 @@ def entry(version):
     blocks = re.split(r"^## ", text, flags=re.M)[1:]
     for block in blocks:
         heading, _, body = block.partition("\n")
-        if heading.strip().split()[0:1] == [version]:
+        if heading.strip().split()[0:1] in ([version], [shown(version)]):
             body = re.split(r"^---\s*$", body, flags=re.M)[0]
             return body.strip()
     return None
@@ -111,9 +123,10 @@ def main(argv):
     # The tag has to be the build. A tag of v1.10029 on a commit that still
     # says 1.10028 would publish one version's exe under another's notes.
     built = built_version()
-    if built != version:
+    if version not in (built, shown(built)):
         sys.exit("the tag says %s but edonline.APP_VERSION is %s - run "
                  "build/bump.py first" % (version, built or "missing"))
+    version = shown(built)
     body = entry(version)
     if not body:
         sys.exit("CHANGELOG.md has no '## %s' entry - write the patch notes "

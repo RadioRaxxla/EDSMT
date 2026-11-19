@@ -161,8 +161,13 @@ if HAVE_DISPLAY:
     menu = plan.context_menu()
     entries = [menu.entrycget(i, "label") for i in range(menu.index("end") + 1)
                if menu.type(i) == "command"]
-    check("right-click: Recentre, Planning circle here, Clear planning circle",
-          entries == ["Recentre", "Planning circle here (4.5 km)", "Clear planning circle"], entries)
+    # 1.10042: Clear is offered only while there is a circle, and says it is
+    # not a rig (a tester took it for the way to remove one); the map's key
+    # follows.
+    check("right-click: Recentre, Planning circle here, Clear the planning circle, the key",
+          entries == ["Recentre", "Planning circle here (4.5 km)",
+                      "Clear the planning circle (not a rig)", "Map key - what every mark is"],
+          entries)
     viewport = plan.last_viewport
     x, y = viewport.to_canvas(1000.0, 250.0)
     plan.plan_ring_at(x, y)

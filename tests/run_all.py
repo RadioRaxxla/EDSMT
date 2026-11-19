@@ -18,7 +18,15 @@ os.environ["LOCALAPPDATA"] = os.path.join(
 # The same net on Linux (1.10039), where the data folder follows
 # $XDG_DATA_HOME.
 os.environ["XDG_DATA_HOME"] = os.path.join(os.environ["LOCALAPPDATA"], "xdg")
+# No check reaches the internet either (1.10042). tests/offline holds a
+# sitecustomize.py, which Python loads by itself in every check started from
+# here, and it lets a check connect to this machine only. On a PC where the
+# community map answers, a check that had put its own figures in place had
+# them replaced by the map's.
+os.environ["PYTHONPATH"] = os.pathsep.join(
+    [os.path.join(HERE, "offline")] + [p for p in [os.environ.get("PYTHONPATH", "")] if p])
 CHECKS = [
+    ("no check reaches the internet", "test_offline.py"),
     ("survey model and plan view", "test_core.py"),
     ("a full session on Ega 1", "test_app.py"),
     ("every backlog row is really built", "test_backlog.py"),
@@ -111,6 +119,50 @@ CHECKS = [
     ("1.10041: the libraries' licences go with every form EDSMT ships in", "test_110041_notices.py"),
     ("1.10041: a release page is short, and links to the full patch notes", "test_110041_release_notes.py"),
     ("1.10041: the wing link is not called beta; Rich Presence in Discord's own words", "test_110041_words.py"),
+    ("1.10042: a closed window takes its timers with it", "test_110042_timers.py"),
+    ("1.10042: everything recorded, read as system, body, location, deposit", "test_110042_sitetree.py"),
+    ("1.10042: My sites lists the picked site's deposits - rigs, from centre, mined, est. left", "test_110042_datawindow.py"),
+    ("1.10042: Last there is the day you were there, not the day of an import", "test_110042_lastthere.py"),
+    ("1.10042: the one-file program restarts and updates itself cleanly", "test_110042_restart.py"),
+    ("1.10042: how long a hold counts as a rig placed is a setting, 1 to 5 seconds", "test_110042_righold.py"),
+    ("1.10042: the stream card says what you are doing now, from the first rig down", "test_110042_doing.py"),
+    ("1.10042: a voice that cannot speak says why, and Test voice waits for the result", "test_110042_voicefault.py"),
+    ("1.10042: more than one take of a recorded line, never the one played last", "test_110042_takes.py"),
+    ("1.10042: live status for the Twitch bot - the ranks, the status, when it is sent", "test_110042_now.py"),
+    ("1.10042: Do you want EDSMT to speak? asked once, before any voice", "test_110042_voiceask.py"),
+    ("1.10042: an Audio tab holds every voice and sound setting", "test_110042_audiotab.py"),
+    ("1.10042: Flight controller and Radio Raxxla on-air play their recordings or the Windows voice, as Celestia does", "test_110042_themes.py"),
+    ("1.10042: numbers, distances and directions from building blocks, joined with no gap, else all Windows voice", "test_110042_blocks.py"),
+    ("1.10042: an output device for the voice and sounds, the default when it is gone", "test_110042_device.py"),
+    ("1.10042: the Powerplay tool and the Leaderboard no longer hold the window - a search off its thread, twenty rows a page", "test_110042_powerplay.py"),
+    ("1.10042: the source zip holds the whole project, new files included", "test_110042_sourcezip.py"),
+    ("1.10042: every link to the source points at RadioRaxxla/EDSMT, where the repository now lives", "test_110042_repohome.py"),
+    ("1.10042: EDSMT in numbers on the page - the community map's own counts, nothing written in by hand", "test_110042_sitestats.py"),
+    ("1.10042: the HCS Voice Packs link, always shown with what it is", "test_110042_hcs.py"),
+    ("1.10042: the map explained - a key, a switch for every layer, right-click to remove, LANDED, you in white", "test_110042_mapkey.py"),
+    ("1.10042: the scope - scale bar, centre, km2, keys behind a switch, zoom kept; skip this pin; chat words", "test_110042_scope.py"),
+    ("1.10042: the tour's card stays in the window, clear of what it names, and its ring moves nothing", "test_110042_tour.py"),
+    ("1.10042: the data window's records - systems, grounds, locations folding, top patch first, the deposit card", "test_110042_datatree.py"),
+    ("1.10042: the data window's parts - your own marks, guiding to any body, worth mining, pictures of sites and areas", "test_110042_dataparts.py"),
+    ("1.10042: My sites is the one data window - places, deposits, card, map, guiding, marks, a key", "test_110042_dataview.py"),
+    ("1.10042: backups at every start, map picture count", "test_110042_backups.py"),
+    ("1.10042: SRV fuel, tonnes an hour and merits on the STATUS box", "test_110042_statuslines.py"),
+    ("1.10042: how long the Rhino and the ship take to fill", "test_110042_filltimer.py"),
+    ("1.10042: tonnes left for everyone - your own figure, the range, \"not measured yet\", one catch-up send", "test_110042_tonnesleft.py"),
+    ("1.10042: keeping the map right - still there? asked once, the visited list, Due a check, may be back, the first tonne takes the mark off", "test_110042_checks.py"),
+    ("1.10042: settings to and from a file", "test_110042_settingsfile.py"),
+    ("1.10042: what did it say - the last 50 spoken lines", "test_110042_voicehistory.py"),
+    ("1.10042: Export CSV on Earnings and Find", "test_110042_csvexport.py"),
+    ("1.10042: Rhino totals and the wing line on Earnings", "test_110042_wingtotals.py"),
+    ("1.10042: the previous program file kept for going back", "test_110042_rollback.py"),
+    ("1.10042: the import finished - found by itself, tonnes, dates, marks, maps, others' finds kept apart, what is new since", "test_110042_import.py"),
+    ("1.10042: the build workflow - artifacts on tags and manual runs only, both Windows files and the Linux file from the tag, the racing test waits", "test_110042_workflow.py"),
+    ("1.2: when the new Basic lines are said - value, rich patch, selling here, hold full, left, due a check, live status, ribbons", "test_12_basiccues.py"),
+    ("1.2: the app says each new Basic line where it belongs, once for what it is about", "test_12_basiclines.py"),
+    ("1.2: how full each rig is, counted from the journal - 12 a rig, ~ when rigs share a commodity", "test_12_rigfill.py"),
+    ("1.2: Still there? and Due a check for other commanders' finds - the answer goes on the map", "test_12_theirs.py"),
+    ("1.2: called 1.2, 1.20000 underneath, so every older copy is offered it", "test_12_version.py"),
+    ("1.2: the voices, sounds and logo are Radio Raxxla's, for use within EDSMT only", "test_12_assets.py"),
     ("the real toolkit, on a real display", "test_gui.py"),
 ]
 # More checks kept on this machine only: EDSMT_EXTRA_CHECKS names one or more

@@ -63,7 +63,7 @@ Windows 10 or 11 and Python 3.10 or newer; the downloads are built with
 3.12.
 
 ```bat
-git clone https://github.com/TheAnnouncer/EDSMT.git
+git clone https://github.com/RadioRaxxla/EDSMT.git
 cd EDSMT
 python -m venv .venv
 .venv\Scripts\activate
@@ -83,7 +83,7 @@ build runs on GitHub from `.github/workflows/build.yml`.
 
 The same program, for Elite played through Proton, Lutris, Heroic or
 Bottles. Each release carries `EDSMT-linux-x86_64.tar.gz` on the
-[Releases](https://github.com/TheAnnouncer/EDSMT/releases) page: unpack it
+[Releases](https://github.com/RadioRaxxla/EDSMT/releases) page: unpack it
 and run `./EDSMT`. Or run from source with `bash RUN.sh`, which needs
 Python 3.10 or newer with tkinter. The game's Saved Games folder is found
 inside whichever Wine prefix is being played in. Hotkeys need an X11
@@ -117,3 +117,7 @@ Copyright (C) 2026 Radio Raxxla. Released under the GNU General Public
 License version 3 only (GPL-3.0-only). See [LICENSE](LICENSE). The licences
 of the libraries EDSMT is built with are in
 [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt).
+
+The voice recordings, the sounds and the EDSMT logo are not covered by the
+GPL: they are Radio Raxxla's, all rights reserved, licensed only for use
+within EDSMT. See [ASSETS-LICENCE.txt](ASSETS-LICENCE.txt).

@@ -28,7 +28,7 @@ def read(*parts):
                    errors="replace").read()
 
 SHIPPED = ["edsmt.py", "survey.py", "planview.py", "journal.py", "overlay.py",
-           "edonline.py", "finder.py", "powerplay.py", "mapimage.py", "shiphold.py", "sessionledger.py", "supportbundle.py", "sellplan.py", "waypoints.py", "guidance.py", "chattags.py", "inputdev.py", "inputmix.py", "importers.py", "regrowth.py", "sitebook.py", "markerfilter.py", "board.py", "crowd.py", "presale.py", "gamebinds.py", "galaxy.py", "zone.py", "warp.py", "gametheme.py", "x11keys.py", "welcome.py", "logo.py", "hubmanifest.py", "tabstrip.py", "uichrome.py", "webhooks.py", "streamer.py", "bestmine.py", "sitemarks.py", "materials.py", "ppsearch.py", "pairing.py", "wingmates.py", "streamout.py", "sessioncard.py", "sonar.py", "voice.py", "voiceattack.py", "tableview.py", "catchup.py", "journalrows.py", "sitecard.py", "shipview.py", "signing.py", "weekcard.py", "squadshare.py", "eddnsend.py", "signalcsv.py", "commfx.py", "voicecues.py", "installkey.py", "planring.py", "richpresence.py"]
+           "edonline.py", "finder.py", "powerplay.py", "mapimage.py", "shiphold.py", "sessionledger.py", "supportbundle.py", "sellplan.py", "waypoints.py", "guidance.py", "chattags.py", "inputdev.py", "inputmix.py", "importers.py", "importdb.py", "regrowth.py", "sitebook.py", "markerfilter.py", "board.py", "crowd.py", "presale.py", "gamebinds.py", "galaxy.py", "zone.py", "warp.py", "gametheme.py", "x11keys.py", "welcome.py", "logo.py", "hubmanifest.py", "tabstrip.py", "uichrome.py", "webhooks.py", "streamer.py", "bestmine.py", "sitemarks.py", "materials.py", "ppsearch.py", "pairing.py", "wingmates.py", "streamout.py", "sessioncard.py", "sonar.py", "voice.py", "voiceattack.py", "tableview.py", "catchup.py", "journalrows.py", "sitecard.py", "shipview.py", "signing.py", "weekcard.py", "squadshare.py", "eddnsend.py", "signalcsv.py", "commfx.py", "voicecues.py", "installkey.py", "planring.py", "richpresence.py", "filltimer.py", "basiccues.py", "rigfill.py"]
 
 print("== the batch files run on Windows ==")
 for name in ("BUILD.bat", "RUN.bat"):
@@ -48,6 +48,17 @@ for name in ("BUILD.bat", "RUN.bat"):
                 bad.append("%s:%d %s" % (name, number, stripped[:60]))
                 break
     check("%s escapes every < > | and & it prints" % name, not bad, bad)
+
+print("== RUN.bat keeps its own setup up to date ==")
+run = io.open(os.path.join(REPO, "RUN.bat"), "rb").read().decode("ascii", "replace")
+# A setup made before Pillow was in requirements.txt never got it: map pictures
+# and session cards were off when EDSMT was run from the source (1.10042).
+check("it remembers which requirements its setup was made with",
+      ".venv\\requirements.installed" in run and "copy /y requirements.txt" in run.lower(), None)
+check("and installs them again when requirements.txt has changed",
+      "fc /b requirements.txt" in run.lower() and run.lower().count("-m pip install -r requirements.txt") >= 1, None)
+check("a failed update is said, and the old setup is still run",
+      "could not update" in run.lower(), None)
 
 print("== the test stub needs nothing that is not installed ==")
 stub = read("tests", "stubs", "_ctkstub.py")
@@ -196,7 +207,7 @@ print("== the source zip is source, not a build ==")
 # top-level names. GPL-3.0 asks for the source; nobody needs 20 MB of
 # unpacked Qt and numpy back again.
 bat = read("BUILD.bat")
-zip_at = bat.find("Compress-Archive")
+zip_at = bat.find("build\\source_zip.py")      # 1.10042: the zip is made by a script
 check("the source zip is built at all", zip_at > 0)
 before = bat[:zip_at]
 check("PyInstaller's scratch tree is cleared before the zip is made",
@@ -216,8 +227,9 @@ _LOCAL_DATA = ("/data/", "settings.json", "settings.json.bak", "settings-history
                "portable.txt", "deposits.csv", "locations.csv", "sessions.csv",
                "rigs.json", "imported.json", "crash.log", "journal-mining-events.log",
                ".env", "*.db", "*.sqlite")
-check("the source zip is the files git tracks, nothing beside them",
-      "git ls-files" in bat and "Compress-Archive" in bat)
+_zip_script = read("build", "source_zip.py")
+check("the source zip is the files git tracks or is about to, nothing it is told to ignore",
+      '"ls-files"' in _zip_script and '"--exclude-standard"' in _zip_script and "source_zip.py" in bat)
 check("and git never tracks a commander's own data",
       not [n for n in _LOCAL_DATA if n not in _gi], [n for n in _LOCAL_DATA if n not in _gi])
 
@@ -298,8 +310,8 @@ install = app_src.split("    def install_update(self):")[1].split("\n    def ")[
 check("and again at the moment it is run",
       "EDO.sha256_of(path) == digest" in install)
 check("the only thing that runs a download is install_update",
-      app_src.count("subprocess.Popen(command") == 1
-      and "subprocess.Popen(command" in install)
+      app_src.count("RL.start(command") == 1 and "RL.start(command" in install
+      and "subprocess.Popen(command" not in app_src)
 check("and install_update is reached from the button alone",
       app_src.count("self.install_update()") == 1
       and "return self.install_update()" in
@@ -328,7 +340,10 @@ def _is_private(ip):
         a, b = (int(x) for x in ip.split(".")[:2])
     except ValueError:
         return True
-    return (a in (0, 10, 127) or (a == 192 and b == 168)
+    # 192.0.2.x, 198.51.100.x and 203.0.113.x are kept for examples (RFC
+    # 5737): nothing answers there, so they are nobody's server.
+    example = ip.startswith(("192.0.2.", "198.51.100.", "203.0.113."))
+    return (a in (0, 10, 127) or (a == 192 and b == 168) or example
             or (a == 172 and 16 <= b <= 31) or a == 255 or a > 255)
 
 # Everything that ships: the whole repo except the build's scratch.
@@ -377,12 +392,12 @@ check("and the PyInstaller that understands that is the one installed",
       and '"pyinstaller>=6.0,<7"' in read(".github", "workflows", "build.yml"))
 _iss_files = [l for l in read("build", "installer.iss").splitlines()
               if l.startswith("Source:")]
-check("the installer puts only the program, README, LICENCE and the libraries' licences on a PC",
-      len(_iss_files) == 4 and all(("dist" in l or "README.md" in l or "LICENSE" in l
-                                    or "THIRD-PARTY-NOTICES.txt" in l)
+check("the installer puts only the program, README, LICENCE, the libraries' licences and the assets notice on a PC",
+      len(_iss_files) == 5 and all(("dist" in l or "README.md" in l or "LICENSE" in l
+                                    or "THIRD-PARTY-NOTICES.txt" in l or "ASSETS-LICENCE.txt" in l)
                                    for l in _iss_files), _iss_files)
-check("the source zip is made from the files git tracks, so nothing else can slip in",
-      "git ls-files" in read("BUILD.bat"))
+check("the source zip is made from what git lists, so nothing else can slip in",
+      '"ls-files"' in read("build", "source_zip.py") and "source_zip.py" in read("BUILD.bat"))
 
 print()
 print("FAILURES:", len(fails))

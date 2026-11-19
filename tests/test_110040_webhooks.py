@@ -96,8 +96,8 @@ def _upgrade():
     listed = {"discord_webhooks": [{"name": "Radio Raxxla", "url": HOOK_B, "finds": True,
                                     "sessions": False, "map": False}]}
     up = WH.upgrade(json.loads(json.dumps(listed)), listed)
-    check("a file that already has the list keeps it exactly", up["discord_webhooks"] == listed["discord_webhooks"],
-          up["discord_webhooks"])
+    check("a file that already has the list keeps it, with the card turned on once (1.10042)",
+          up["discord_webhooks"] == [dict(listed["discord_webhooks"][0], card=True)], up["discord_webhooks"])
 
 
 @section("the list as the app reads it")
@@ -110,7 +110,7 @@ def _clean():
           rows[0]["name"] == "Discord 1" and rows[2]["name"] == "Discord 3", [r["name"] for r in rows])
     check("names are trimmed, switches are true or false",
           rows[1] == {"name": "The Announcer", "url": HOOK_B, "finds": True, "sessions": False, "map": True,
-                      "card": False}, rows[1])
+                      "card": True}, rows[1])
     check("anything that is not a list is no webhooks", WH.clean("x") == [] and WH.clean(None) == [])
     ok = lambda url: url.startswith("https://discord.com/api/webhooks/")
     three = [WH.entry("One", HOOK_A, finds=True), WH.entry("Two", HOOK_B, finds=False),
@@ -240,7 +240,7 @@ def _post_file(url, payload, filename, data, timeout=40.0):
     return {"id": str(next(_ids)), "attachments": [{"id": "5550001", "filename": filename}]}
 
 
-def _edit(url, message_id, payload, keep=(), timeout=20.0):
+def _edit(url, message_id, payload, keep=(), timeout=20.0, files=()):
     _refused(url)
     EDITS.append((url, str(message_id), payload, list(keep)))
     return {"id": message_id}
@@ -306,9 +306,11 @@ def session_world(tag):
 @section("a session goes to every webhook with Sessions on; each edit to its own message")
 def _sessions():
     folder = session_world("a")
-    app.settings["discord_webhooks"] = [WH.entry("One", HOOK_A, sessions=True, map=True),
-                                        WH.entry("Two", HOOK_B, sessions=True, map=False),
-                                        WH.entry("Three", HOOK_C, sessions=False)]
+    # The map picture alone: the card is off on these (test_110040_stream.py
+    # covers the card, on by default since 1.10042).
+    app.settings["discord_webhooks"] = [WH.entry("One", HOOK_A, sessions=True, map=True, card=False),
+                                        WH.entry("Two", HOOK_B, sessions=True, map=False, card=False),
+                                        WH.entry("Three", HOOK_C, sessions=False, card=False)]
     app.settings["discord_edit_after_sale"] = True
     app.post_discord_sessions()                     # the first look: nothing closed yet
     live = app.earnings.start("Col 1 Sector AA-A c1-1", "Col 1 Sector AA-A c1-1 BC 2", "Jameson",
@@ -409,7 +411,7 @@ def shown(widget):
 @section("Settings -> Discord: the community line, then your own webhooks as rows")
 def _settings():
     import webbrowser
-    app.settings["discord_webhooks"] = [WH.entry("The Announcer", HOOK_A, finds=True, map=False),
+    app.settings["discord_webhooks"] = [WH.entry("The Announcer", HOOK_A, finds=True, map=False, card=False),
                                         WH.entry("Radio Raxxla", HOOK_B)]
     app.worker = Worker()
     win = A.SettingsWindow(app)
@@ -465,9 +467,9 @@ def _settings():
         check("and then Add a webhook is gone", not shown(win.hook_add))
         win.add_hook_row(); pump(1)
         check("a sixth is never made", len(win.hook_rows) == 5)
-        check("a new row's switches are a summary with its map, no card",
+        check("a new row's switches are a summary with its map and its card",
               {k: v.get() for k, v in win.hook_rows[2]["vars"].items()}
-              == {"finds": False, "sessions": True, "map": True, "card": False})
+              == {"finds": False, "sessions": True, "map": True, "card": True})
         win.hook_rows[4]["remove"].invoke(); pump(2)
         check("Remove takes that row away", len(win.hook_rows) == 4)
         check("and Add a webhook is back", shown(win.hook_add))
@@ -515,7 +517,7 @@ def _settings():
         if saved:
             got = saved[-1]["discord_webhooks"]
             check("with every row, its name, address and switches - a blank name is Discord N",
-                  got == [WH.entry("The Announcer", HOOK_A, finds=True, map=False),
+                  got == [WH.entry("The Announcer", HOOK_A, finds=True, map=False, card=False),
                           WH.entry("Radio Raxxla", HOOK_B),
                           WH.entry("Squadron", HOOK_D),
                           WH.entry("Discord 4", HOOK_C.replace("discord.com", "discordapp.com"), finds=True)],

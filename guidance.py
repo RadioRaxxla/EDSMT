@@ -139,6 +139,7 @@ class GuidanceMixin:
             guide = self.wp_guide(cmap, state)
             if guide is None:
                 return False
+            self.wp_tell_landed(guide)
             before = guide.index, guide.done
             moved = guide.update(state.lat, state.lon, state.radius_m,
                                  self.wp_arrive_m(), swept=cmap.swept_at)
@@ -166,6 +167,50 @@ class GuidanceMixin:
             return self.say("Guided survey: every waypoint reached.", WP_GREEN)
         self.flash(guide.label(), "next waypoint")
         return self.say("Guided survey: on to %s." % guide.label(), WP_GREEN)
+
+    def wp_tell_landed(self, guide):
+        """Once for a survey (1.10042): waypoint 1 is where you landed,
+        said in words and by voice, with how to remove it. True when it was
+        said now."""
+        if guide is None or guide.landed_said or guide.done or guide.landed() is None:
+            return False
+        guide.landed_said = True
+        book = _own(self, "waypoint_book", None)
+        if book is not None:
+            book.save()
+        speak = _get(self, "speak", None)
+        if callable(speak):
+            # 1.2: the recorded "Touchdown. Waypoint one marked."
+            speak("landed_marked")
+        self.say("Guided survey: waypoint 1 is LANDED - where you touched down "
+                 "(your ship may have left since). The small circles are where to "
+                 "press your mineral scanner. Right-click a waypoint on the map to "
+                 "remove it.", WP_GREEN)
+        return True
+
+    def wp_remove(self, n):
+        """Take waypoint `n` off the survey: right-click on the map, Remove
+        (1.10042). The rest are numbered on from 1."""
+        guide = self._wp_key_guide()
+        if guide is None:
+            return False
+        try:
+            n = int(n)
+        except (TypeError, ValueError):
+            return self.say("No such waypoint.", WP_AMBER)
+        point = next((p for p in guide.waypoints if p["n"] == n), None)
+        if point is None or not guide.remove(n):
+            return self.say("Guided survey: there is no waypoint %s." % n, WP_AMBER)
+        name = "LANDED (waypoint %d)" % n if WP.is_landed(point) else "WP %d" % n
+        self.waypoint_book.save()
+        if guide.done:
+            self.say("Guided survey: %s removed. No waypoints are left to drive to."
+                     % name, WP_GREEN)
+        else:
+            self.say("Guided survey: %s removed. %d left; next is %s." % (
+                name, guide.total, guide.label()), WP_GREEN)
+        self.redraw()
+        return True
 
     def _wp_key_guide(self):
         cmap = self._survey_map()
@@ -314,7 +359,8 @@ class GuidanceMixin:
                 mark = "current"
             else:
                 mark = "todo"
-            points.append({"n": point["n"], "east": east, "north": north, "state": mark})
+            points.append({"n": point["n"], "east": east, "north": north, "state": mark,
+                           "landed": WP.is_landed(point)})
         if guide.done:
             text = "SURVEY COMPLETE"
             if guide.skipped:

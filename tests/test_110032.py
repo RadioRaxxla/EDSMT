@@ -52,8 +52,9 @@ check("a worked-out deposit's own measure still wins over the estimate",
       not any("est." in l for l in A.tonnes_lines(dict(fresh, cycles="d=60"), mine)))
 check("a depleted one gets no estimate",
       not any("est." in l for l in A.tonnes_lines(dict(fresh, amount="Depleted"), mine)))
+# 1.10042: and what everyone's reports say, as a third argument.
 check("the details window passes the commander's deposits in",
-      "tonnes_lines(deposit, attr(self.store, \"deposits\", None))" in SRC)
+      "tonnes_lines(deposit, attr(self.store, \"deposits\", None)," in SRC)
 
 print("== a rig counts on a pin within half the spacing ==")
 check("78 m spacing: a rig 39 m off still counts",

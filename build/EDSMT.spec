@@ -34,7 +34,15 @@ datas += [(os.path.join(ROOT, "images", name), "images")
 # The patch notes: the welcome window lists this version's headlines.
 datas += [(os.path.join(ROOT, "CHANGELOG.md"), ".")]
 # The licences of what EDSMT is built with travel with every copy (1.10041).
+import glob as _glob_fonts
 datas += [(os.path.join(ROOT, "THIRD-PARTY-NOTICES.txt"), ".")]
+# 1.2: the voices, sounds and logos are Radio Raxxla's, not GPL.
+datas += [(os.path.join(ROOT, "ASSETS-LICENCE.txt"), ".")]
+# The session card's type (1.10042), the weekly card's own: Rajdhani and
+# Share Tech Mono, with their licences (SIL Open Font License).
+datas += [(path, "fonts") for path in sorted(_glob_fonts.glob(os.path.join(ROOT, "fonts", "*.ttf")))]
+datas += [(os.path.join(ROOT, "fonts", name), "fonts")
+          for name in ("OFL-Rajdhani.txt", "OFL-ShareTechMono.txt")]
 # The Basic voice line pack (1.10040): one .wav per line, found by
 # voice.recording() under voice/<theme>/ in the bundle - voice/ship_computer
 # for the Ship computer, voice/celestia/<ship|srv|foot> for Celestia - each
@@ -51,7 +59,7 @@ hiddenimports += ["survey", "planview", "journal", "edonline", "overlay",
 # Guided survey and the pointers (1.10035): the window imports both.
 hiddenimports += ["waypoints", "guidance"]
 # 1.10040: the welcome window, the logo, the chrome and the hub manifest.
-hiddenimports += ["welcome", "logo", "hubmanifest", "tabstrip", "uichrome", "pairing", "sitecard", "shipview", "signing", "weekcard", "squadshare", "eddnsend", "signalcsv", "commfx", "voicecues", "installkey", "planring", "richpresence"]
+hiddenimports += ["voiceask", "voiceblocks", "nowstatus", "audiodev", "welcome", "logo", "hubmanifest", "tabstrip", "uichrome", "pairing", "sitecard", "shipview", "signing", "weekcard", "squadshare", "eddnsend", "signalcsv", "commfx", "voicecues", "installkey", "planring", "richpresence"]
 # Map pictures (1.10035) are drawn with Pillow. It is imported inside
 # functions, so name it: a build that left it out would still start, and
 # every picture button would then say the library is missing.
@@ -72,7 +80,7 @@ hiddenimports += ["finder", "powerplay", "sellplan", "board", "crowd", "presale"
 
 # 1.10035: importing from other tools, depleted marks and regrowth, the bin
 # and favourites, and the map filters.
-hiddenimports += ["importers", "regrowth", "sitebook", "markerfilter"]
+hiddenimports += ["importers", "importdb", "regrowth", "sitebook", "markerfilter"]
 # 1.10038: which mining location you are in, without targeting it.
 hiddenimports += ["zone"]
 # 1.10039: the shape of an overlay box - a keystone and a bend.
@@ -99,6 +107,18 @@ hiddenimports += ["tableview", "catchup", "journalrows"]
 # 1.10041: finds held until the CMDR name is known, and the certificates
 # HTTPS is checked against.
 hiddenimports += ["sharehold", "certstore"]
+# 1.10042: everything recorded as one tree, a closed window taking its
+# timers with it, and a restart or update that unpacks for itself.
+hiddenimports += ["sitetree", "tkguard", "relaunch"]
+# 1.10042: the Powerplay tool's search on a thread of its own.
+hiddenimports += ["searchjob"]
+hiddenimports += ["startbackup", "folderstats", "statuslines", "filltimer", "basiccues", "rigfill", "settingsfile", "csvexport", "rhinototals"]
+# 1.10042: the map's key and the switch for each of its layers.
+hiddenimports += ["mapkey"]
+# 1.10042: the data window - your own marks, and guiding to any deposit.
+hiddenimports += ["ownmarks", "farguide"]
+# 1.10042: tonnes left for everyone, and keeping the map right (checks).
+hiddenimports += ["tonnesleft", "recheck"]
 
 a = Analysis([os.path.join(ROOT, "edsmt.py")], pathex=[ROOT],
              binaries=[], datas=datas,

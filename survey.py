@@ -72,6 +72,9 @@ DEPOSIT_FIELDS = [
     "depleted_at",     # UTC: when it was FIRST marked depleted
     "rechecks",        # "2026-10-14T09:00:00Z;..." - each look that found it
                        # still depleted
+    # Added in 1.10042. Old files read it as blank.
+    "mined_at",        # UTC: the last tonne refined standing on it
+    "checked_at",      # UTC: the last time you confirmed it was still there
 ]
 
 LOCATION_FIELDS = [
@@ -116,6 +119,64 @@ def stamp_note(existing, text, when=None):
     line = "%s %s" % (text, time.strftime("%d/%m/%Y %H:%M", when))
     existing = str(existing or "").strip()
     return (existing + "\n" + line).strip() if existing else line
+
+
+# -- when somebody was last there -------------------------------------------
+# How an import, and a find pasted from a shared line, begin the note on
+# every row they make.
+CAME_IN = ("imported from ", "pasted from a shared line")
+# An import dates the rows it makes within minutes of writing that note.
+CAME_IN_WINDOW_S = 600
+
+
+def came_in(row):
+    """(True, when) for a row an import or a pasted line made, else (False, 0).
+
+    `when` is the minute it came in as seconds, read from the stamp the note
+    ends with, or 0 when the note carries no time of day.
+    """
+    notes = str((row or {}).get("notes") or "").strip()
+    first = notes.splitlines()[0].strip() if notes else ""
+    if not first.lower().startswith(CAME_IN):
+        return False, 0
+    try:
+        return True, int(time.mktime(time.strptime(first[-16:], "%d/%m/%Y %H:%M")))
+    except (ValueError, OverflowError):
+        return True, 0
+
+
+def last_there(row):
+    """The newest day a deposit's or a signal's own record shows somebody
+    there, as a UTC stamp, or "" when it shows none.
+
+    An import is not a visit. A row an import made keeps the date that was in
+    the file, and that counts; the moment the import wrote the row does not.
+    Nor does the date on a pasted find, which never carries one of its own.
+    Being there afterwards does: a signal logged, a tonne refined, a deposit
+    found worked out or looked at again.
+    """
+    row = row or {}
+    made, when = came_in(row)
+
+    def counts(stamp, born=False):
+        at = _epoch(stamp)
+        if not at:
+            return False
+        if not made:
+            return True
+        if not when:
+            return not born
+        return at < when or at > when + CAME_IN_WINDOW_S
+
+    found = [str(row.get(key)) for key, born in (("recorded", True), ("depleted_at", False),
+                                                  ("mined_at", False))
+             if counts(row.get(key), born)]
+    found += [look for look in str(row.get("rechecks") or "").split(";") if counts(look.strip())]
+    for cycle in str(row.get("cycles") or "").split(";"):
+        day = cycle.split("=", 1)[0].strip()
+        if day and _epoch(day + "T00:00:00Z"):
+            found.append(day + "T00:00:00Z")
+    return max(found) if found else ""
 
 
 def rows_near(deposits, lat, lon, radius_m, limit=None):
@@ -944,8 +1005,13 @@ class Survey:
                      radius_m=None, commodities=None, depleted=None,
                      temperature_k=None, cmdr="",
                      planet_class=None, gravity=None, atmosphere=None,
-                     volcanism=None, notes=None):
+                     volcanism=None, notes=None, recorded=None):
         """Record or update a mining location signal.
+
+        `recorded` is when somebody was there. Left out, it is now: logging a
+        signal is being at it. An import passes the newest date in what it
+        read, or "" when the file had none - a signal it makes takes that,
+        and one already held keeps its own, because an import is not a visit.
 
         Only the fields actually supplied are touched, so logging a position
         later does not wipe the commodity list read off the signal earlier,
@@ -969,7 +1035,8 @@ class Survey:
         note over.
         """
         row = self.location(system, body, number)
-        if row is None:
+        made = row is None
+        if made:
             row = {key: "" for key in LOCATION_FIELDS}
             row.update({"id": new_id(), "system": system, "body": body,
                         "location": str(number)})
@@ -993,7 +1060,10 @@ class Survey:
             row["cmdr"] = cmdr
         if notes:
             row["notes"] = stamp_note(row.get("notes"), notes)
-        row["recorded"] = utc_now()
+        if recorded is None:
+            row["recorded"] = utc_now()
+        elif made:
+            row["recorded"] = str(recorded or "")
         self.save_locations()
         return row
 
@@ -1072,6 +1142,7 @@ class Survey:
         tally = unpack_counts(row.get("mined"))
         add_counts(tally, {canonical(commodity): int(tonnes)})
         row["mined"] = pack_counts(tally)
+        row["mined_at"] = utc_now()
         return row
 
     def backup_to(self, folder):
@@ -1218,7 +1289,8 @@ class Survey:
 
         One row per system, body and signal number: what the game said it
         offers, what you found there and what is left, the rigs still to be
-        had, the tonnes taken out, and when you were last there. It is the
+        had, the tonnes taken out, and when you were last there (last_there:
+        the day an import ran is not one). It is the
         answer to "where were those two spots I logged" - the main window
         only ever shows the body you are on.
 
@@ -1245,13 +1317,13 @@ class Survey:
             site["logged"] = True
             site["offers"] = self.offered(row)
             site["depleted"] = self.worked_out(row)
-            site["last"] = max(site["last"], str(row.get("recorded") or ""))
+            site["last"] = max(site["last"], last_there(row))
         for row in self.deposits:
             if not (row.get("system") and row.get("body")):
                 continue
             site = place(row["system"], row["body"], row.get("location"))
             site["finds"] += 1
-            site["last"] = max(site["last"], str(row.get("recorded") or ""))
+            site["last"] = max(site["last"], last_there(row))
             own, _others = own_tonnes(row)
             own += sum(cycle_tonnes(row))
             if own:

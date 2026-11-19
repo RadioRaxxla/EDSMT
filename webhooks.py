@@ -9,7 +9,10 @@ Each one is a row of the settings list "discord_webhooks":
     finds     every find you mark, one message each
     sessions  one summary when a Rhino session ends, edited after the sale
     map       the map picture sent with that summary
-    card      the session card (sessioncard.py) sent with it too (1.10040)
+    card      the session card (sessioncard.py) sent with it too (1.10040),
+              and the picture the summary shows (1.10042): on unless it is
+              switched off, and switched on once for every webhook saved
+              before - the card is what the channel is for
 
 A row saved before a switch existed takes a new row's setting for it, so an
 older settings file reads the same as it did.
@@ -28,9 +31,12 @@ import hashlib
 
 MAX_HOOKS = 5
 KINDS = ("finds", "sessions", "map", "card")
-# A new row: the session summary with its map, not every find - a post per
-# find was a channel nobody could read (1.10035). The card is asked for.
-NEW_ROW = {"finds": False, "sessions": True, "map": True, "card": False}
+# A new row: the session summary with its map and its card, not every find -
+# a post per find was a channel nobody could read (1.10035). The card was
+# asked for until 1.10042; it is now what the summary shows.
+NEW_ROW = {"finds": False, "sessions": True, "map": True, "card": True}
+# Set in the settings once every saved webhook has had its card turned on.
+CARD_ONCE = "discord_card_on_once"
 # The one webhook a settings file from before 1.10040 had becomes this.
 UPGRADED_NAME = "My Discord"
 # Where that file kept it, and its switches. Gone once it is a list.
@@ -103,6 +109,13 @@ def upgrade(merged, saved):
         merged["discord_webhooks"] = rows
     for key in OLD_KEYS:
         merged.pop(key, None)
+    if not saved.get(CARD_ONCE):
+        # 1.10040 to 1.10042 wrote the card off into every row it saved.
+        rows = merged.get("discord_webhooks")
+        if isinstance(rows, list):
+            merged["discord_webhooks"] = [dict(row, card=True) if isinstance(row, dict) else row
+                                          for row in rows]
+        merged[CARD_ONCE] = True
     return merged
 
 

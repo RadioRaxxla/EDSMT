@@ -1098,13 +1098,25 @@ def _powerplay_window():
           and win.title() == "EDSMT - Powerplay")
     check("it says the pledge, from the journal",
           "Pledged to %s" % POWER in win.pledge.cget("text"), win.pledge.cget("text"))
+    def answered(seconds=15.0):
+        """1.10042 (A3): the record is searched on a thread of its own; wait
+        for the answer to be drawn, never a number of loops."""
+        end = time.time() + seconds
+        while time.time() < end:
+            pump(1)
+            if not win.searching() and win.count_grid.rows:
+                return True
+            time.sleep(0.02)
+        return not win.searching()
+
+    check("the search of the record comes back", answered())
     rows = {r[0][0]: r[4][0] for r in win.count_grid.rows}
     check("every system in the record is listed with what selling there would do",
           len(rows) == len(SYSTEMS) and rows["Kaine Hold"] == "Reinforce"
           and rows["Open Near"] == "Expand" and rows["Open Edge"] == "Expand"
           and rows["Open Far"] == "Nothing" and rows["Torval Near"] == "Nothing", rows)
-    check("and drawn on the table", "Expand" in texts_in(win.count_grid.table)
-          and "Reinforce" in texts_in(win.count_grid.table))
+    check("and drawn on the table", "Expand" in win.count_grid.table.texts()
+          and "Reinforce" in win.count_grid.table.texts())
     check("it says where the goods were mined, from the record",
           win.hold_line.cget("text").startswith("Mined in Kaine Hold."), win.hold_line.cget("text"))
     check("and warns about the bought Gold", "was bought" in win.warning.cget("text"),
@@ -1114,17 +1126,18 @@ def _powerplay_window():
           and "about" not in win.headline.cget("text"), win.headline.cget("text"))
     win.only_counts.set(True)
     win.repaint()
-    pump(2)
+    answered()
     check("Only where it counts", sorted(r[0][0] for r in win.count_grid.rows)
           == ["Kaine Hold", "Open Edge", "Open Near"])
     win.only_counts.set(False)
     A.set_entry(win.mined_box, "Torval Near")
     win.repaint()
-    pump(2)
+    answered()
     rows = {r[0][0]: r[4][0] for r in win.count_grid.rows}
     check("goods said to be mined in Torval Near undermine there", rows["Torval Near"] == "Undermine", rows)
     A.set_entry(win.mined_box, "")
     win.repaint()
+    answered()
 
     # The sell side: prices the app already has, best five and nearest five.
     app.sell_quotes = {"platinum": {"commodity": "Platinum", "at": time.time(), "rows": [

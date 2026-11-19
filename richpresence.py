@@ -87,8 +87,11 @@ def activity(state, now, hidden=False):
     session = state.get("session") if isinstance(state.get("session"), dict) else {}
     mining = [str(m) for m in (state.get("mining") or []) if m]
     running = bool(session.get("running"))
-    details = ("Mining " + ", ".join(mining)) if running and mining else \
-        ("Rhino session" if running else "On the surface")
+    # 1.10042: the line the stream card shows, when the state carries it -
+    # "Mining Iridium" from the moment the rigs go down, or "Surveying".
+    doing = str(state.get("doing") or "").strip()
+    details = doing or (("Mining " + ", ".join(mining)) if running and mining else
+                        ("Rhino session" if running else "On the surface"))
     parts = []
     body = str(state.get("body") or "").strip()
     if body and not hidden:

@@ -11,6 +11,10 @@ thousand.
 Nothing here touches a widget. The table in edsmt.py asks these how many
 rows fit, which rows are on screen, what the scrollbar should say, what
 colour a row is and how wide a column wants to be.
+
+1.10042: the Powerplay tool's tables and the Leaderboard are on the tree view
+too, twenty rows a page. Which rows a page holds, how many pages there are
+and what the line under the table says are worked out here as well.
 """
 
 # A row takes its colour from its cells: the strongest of these wins. The
@@ -23,6 +27,9 @@ LINE_JOIN = " · "
 # whole set are added to those, so a long name further down is not cut off.
 WIDTH_SAMPLE = 300
 WIDTH_LONGEST = 12
+# Rows on a page, for the tables that turn pages (1.10042): the Powerplay
+# tool's two and the Leaderboard.
+PAGE_ROWS = 20
 
 
 def _whole(value, default=0):
@@ -164,3 +171,49 @@ def picked_after(picked, index, anchor, shift=False, ctrl=False):
             picked.add(index)
         return picked, index
     return {index}, index
+
+
+# -- a page at a time (1.10042) ------------------------------------------------
+
+def page_count(total, size=PAGE_ROWS):
+    """How many pages `total` rows make. At least one: no rows is one empty
+    page."""
+    size = max(1, _whole(size, PAGE_ROWS))
+    total = max(0, _whole(total))
+    return max(1, -(-total // size))
+
+
+def clamp_page(page, total, size=PAGE_ROWS):
+    """A page number, counted from 0, kept inside the pages there are."""
+    return max(0, min(_whole(page), page_count(total, size) - 1))
+
+
+def page_rows(rows, page, size=PAGE_ROWS):
+    """The rows of one page. A page past the end is the last one."""
+    rows = list(rows or ())
+    size = max(1, _whole(size, PAGE_ROWS))
+    first = clamp_page(page, len(rows), size) * size
+    return rows[first:first + size]
+
+
+def page_turns(page, total, size=PAGE_ROWS):
+    """(whether there is a page before this one, whether there is one after)."""
+    page = clamp_page(page, total, size)
+    return page > 0, page < page_count(total, size) - 1
+
+
+def page_for(page, total, fresh=True, size=PAGE_ROWS):
+    """The page to show: the first for a fresh result set - a new search or
+    a changed filter - otherwise the one being read, if it is still there."""
+    return 0 if fresh else clamp_page(page, total, size)
+
+
+def page_line(page, total, one="row", many="rows", size=PAGE_ROWS):
+    """The line under a table: "Page 2 of 7 - 132 systems". Nothing to show
+    is no line."""
+    total = max(0, _whole(total))
+    if not total:
+        return ""
+    return "Page %d of %d - %s %s" % (
+        clamp_page(page, total, size) + 1, page_count(total, size),
+        "{:,}".format(total), one if total == 1 else many)

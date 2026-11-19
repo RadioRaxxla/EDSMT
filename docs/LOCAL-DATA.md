@@ -32,7 +32,8 @@ names are hidden in it exactly as they are on screen.
 | `session` | The Rhino session: `running` and `paused` (true or false), `seconds` so far and `clock` as text. |
 | `tonnes` | What the session has brought up, a list of `commodity` and `tonnes`, most first. |
 | `tonnes_total` | All of it added up. |
-| `mining` | The commodities being mined, most first (the first few). |
+| `mining` | The commodities being mined (the first few): what your rigs are on, or what the session has refined when that is not known. |
+| `doing` | What you are doing now, as one line: "Mining Iridium" from the moment rigs are down, "Surveying" in the Rhino with none down, or empty. |
 | `cr_hr` | Credits an hour for the session, a whole number; `cr_hr_text` is the same with thousands separators. |
 | `merits` | Powerplay merits from the session, or null. `merits_estimated` is true when that figure is worked out rather than read. |
 | `rigs_down` | How many of your rigs are down. |

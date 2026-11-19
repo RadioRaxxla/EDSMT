@@ -16,11 +16,13 @@ import time
 
 import regrowth as RG
 import survey as SV
+import tonnesleft as TL
 
 REFRESH_S = 6 * 3600
 REGROWTH_TAG = "regrowth"
 SPACING_TAG = "rig-spacing"
 REGROWTH_SHARE_TAG = "regrowth-share"
+TONNES_TAG = TL.TAG
 
 
 def _number(value):
@@ -117,6 +119,7 @@ class Crowd:
     def __init__(self):
         self.regrowth = None
         self.spacing = None
+        self.tonnes = TL.TonnesBook()
         self.asked_at = 0.0
         self.sent = set()
 
@@ -130,6 +133,8 @@ class Crowd:
         if tag == REGROWTH_TAG and isinstance(data.get("all"), dict):
             self.regrowth = data
             return True
+        if tag == TONNES_TAG:
+            return self.tonnes.take(data)
         if tag == SPACING_TAG and "layouts" in data:
             self.spacing = data
             return True
@@ -152,6 +157,38 @@ class Crowd:
                     and int(row.get("reports") or 0) >= 3:
                 return row
         return data.get("all")
+
+    def regrow_days(self, commodity=""):
+        """The days a worked-out deposit takes to come back, once the
+        community's reports have measured it (the earliest of the middle of
+        them); None until they have."""
+        row = self.regrowth_for(commodity)
+        if not isinstance(row, dict) or not row.get("measured"):
+            return None
+        days = _number(row.get("low_days"))
+        return days if days and days > 0 else None
+
+    def expected_line(self, deposit, now=None):
+        """When a worked-out deposit is expected back, from the measured
+        reports: "expected back 14 Nov to 26 Nov (12 reports)", or "may be
+        back - needs a check" once the time has passed; "" when it is not
+        worked out, was never dated, or nothing is measured yet."""
+        if not RG.depleted(deposit):
+            return ""
+        row = self.regrowth_for((deposit or {}).get("commodity"))
+        days = self.regrow_days((deposit or {}).get("commodity"))
+        first = RG.first_date(deposit)
+        if days is None or not first:
+            return ""
+        now = time.time() if now is None else now
+        if now - first >= days * RG.DAY:
+            return RG.BACK_TEXT
+        high = _number(row.get("high_days")) or days
+        fmt = lambda at: time.strftime("%d %b", time.gmtime(at)).lstrip("0")
+        count = int(row.get("reports") or 0)
+        return "expected back %s to %s (%d report%s)" % (
+            fmt(first + days * RG.DAY), fmt(first + max(days, high) * RG.DAY),
+            count, "" if count == 1 else "s")
 
     def card_line(self, deposit):
         """The line a depleted deposit's card adds, or ""."""

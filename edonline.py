@@ -51,9 +51,11 @@ import certstore as CS
 CS.install()
 
 HEALTH_TAG = "health"
+NOW_TAG = "now"      # the live status for the Twitch bot (nowstatus.py)
+RIBBONS_TAG = "ribbons"   # 1.2: a commander's ribbon steps, for the voice
 
 APP_NAME = "EDSMT"
-APP_VERSION = "1.10041"
+APP_VERSION = "1.20000"
 # The worker tag the bodies of a system come back under.
 BODIES_TAG = "bodies"
 # How a deposit was rigged (#218): sent, and the best ones read back.
@@ -346,7 +348,7 @@ def discord_message(title, fields=(), description="", when=None) -> dict:
     embed = {"title": _clip(title, DISCORD_LIMITS["title"]),
              "color": DISCORD_COLOUR,
              "footer": {"text": _clip("EDSMT %s - radioraxxla.com/EDSMT"
-                                      % APP_VERSION, DISCORD_LIMITS["footer"])},
+                                      % SHOWN_VERSION, DISCORD_LIMITS["footer"])},
              "timestamp": utc_stamp(when)}
     if description:
         embed["description"] = _clip(description, DISCORD_LIMITS["description"])
@@ -579,9 +581,11 @@ def discord_post_file(url: str, payload: dict, filename: str, data: bytes,
 
 
 def discord_edit(url: str, message_id, payload: dict, keep=(),
-                 timeout: float = 20.0) -> dict:
+                 timeout: float = 20.0, files=()) -> dict:
     """Edit a message this webhook posted. `keep` is the ids of the
-    attachments to leave on it: an edit that names none of them removes them."""
+    attachments to leave on it: an edit that names none of them removes them.
+    `files` [(filename, bytes)] are put on it as well (1.10042: the session
+    card drawn again after the sale)."""
     url = str(url or "").strip()
     if not discord_hook_ok(url):
         raise ValueError("That is not a Discord webhook address - copy it from "
@@ -590,6 +594,12 @@ def discord_edit(url: str, message_id, payload: dict, keep=(),
     if not re.fullmatch(r"\d{5,25}", message_id):
         raise ValueError("Discord gave no message to edit.")
     body = dict(payload)
+    if files:
+        body["attachments"] = [{"id": a} for a in keep or ()] + [
+            {"id": i, "filename": str(n)} for i, (n, _d) in enumerate(files)]
+        return post_multipart(url.rstrip("/") + "/messages/" + message_id, body,
+                              [(str(n), d, "image/png") for n, d in files],
+                              timeout=max(timeout, 40.0), method="PATCH")
     if keep:
         body["attachments"] = [{"id": a} for a in keep]
     return patch_json(url.rstrip("/") + "/messages/" + message_id, body, timeout=timeout)
@@ -788,6 +798,21 @@ def version_tuple(text):
         digits = "".join(c for c in chunk if c.isdigit())
         parts.append(int(digits) if digits else 0)
     return tuple(parts) or (0,)
+
+
+def shown_version(text):
+    """The version as people read it (1.2): the number underneath without the
+    zeros on the end of its last part - 1.20000 is 1.2, 1.20100 is 1.201.
+    Versions before 1.2 (1.10042) read as they always did. Comparing is
+    always done on the number underneath (version_tuple)."""
+    text = str(text or "").strip()
+    head, dot, tail = text.rpartition(".")
+    if not dot or not head or not tail.isdigit() or version_tuple(text) < (1, 20000):
+        return text
+    return "%s.%s" % (head, tail.rstrip("0") or "0")
+
+
+SHOWN_VERSION = shown_version(APP_VERSION)
 
 
 def is_newer(candidate, current):
@@ -1007,7 +1032,7 @@ class UpdateCheck:
         # JSON, so the app gets the packages as well as the words. The
         # message is still in it, whole, for anything that only says it.
         answer = {"version": latest, "page": where, "headline": headline,
-                  "message": "EDSMT %s is out%s." % (latest, note)}
+                  "message": "EDSMT %s is out%s." % (shown_version(latest), note)}
         for kind in UPDATE_KINDS:
             answer[kind] = update_package(data, kind)
         return json.dumps(answer)
@@ -1383,8 +1408,14 @@ class CommunityClient:
             lambda: json.dumps(get_json(url, headers=self._headers())))
         return True
 
+    def report_seen(self, cmdr: str, system: str, planet: str, spot: str) -> bool:
+        """Say a site is still there, standing on it (1.2: Still there?
+        answered for another commander's find). A sighting, sent as the
+        depletion report with worked_out false and seen true."""
+        return self.report_depletion(cmdr, system, planet, spot, worked_out=False, seen=True)
+
     def report_depletion(self, cmdr: str, system: str, planet: str,
-                         spot: str, worked_out: bool = True) -> bool:
+                         spot: str, worked_out: bool = True, seen: bool = False) -> bool:
         """Say a site has been worked out, so nobody else drives out to it."""
         if not self.ready:
             return False
@@ -1399,6 +1430,8 @@ class CommunityClient:
             "message": {"system": system, "planet": planet, "spot": spot,
                         "worked_out": bool(worked_out)},
         }
+        if seen and not worked_out:
+            payload["message"]["seen"] = True
         url = f"{self.base_url}/v1/depletion"
         self.worker.submit(
             "deplete",
@@ -1701,6 +1734,27 @@ class CommunityClient:
         self.worker.submit(tag, ask)
         return True
 
+    def ribbons(self, cmdr: str, tag: str = RIBBONS_TAG) -> bool:
+        """A commander's ribbon steps on the community map (1.2), for the
+        voice's "New ribbon earned". Reading only. A commander with nothing
+        on the map yet (404) is answered as no steps."""
+        name = str(cmdr or "").strip()
+        if not (self.can_read and name):
+            return False
+        url = f"{self.base_url}/v1/public/cmdrs/{urllib.parse.quote(name, safe='')}/ribbons"
+        headers = self._headers()
+
+        def ask():
+            try:
+                return json.dumps(get_json(url, headers=headers))
+            except RuntimeError as exc:
+                if "HTTP 404" not in str(exc):
+                    raise
+            return json.dumps({"earned": 0})
+
+        self.worker.submit(tag, ask)
+        return True
+
     def report_regrowth(self, cmdr: str, message: dict,
                         tag: str = "regrowth-share") -> bool:
         """A worked-out deposit of the commander's seen full again (1.10036):
@@ -1719,12 +1773,26 @@ class CommunityClient:
         self.worker.submit(tag, lambda: json.dumps(post_json(url, payload, headers=headers)))
         return True
 
+    def send_now(self, cmdr: str, status, tag: str = NOW_TAG) -> bool:
+        """The commander's live status for the Radio Raxxla Twitch bot
+        (1.10042), or None to take it down. Only ever called with its switch
+        on, and once as the switch goes off."""
+        cmdr = str(cmdr or "").strip()
+        if not (self.ready and cmdr):
+            return False
+        payload = {"cmdr": cmdr, "status": status if isinstance(status, dict) else None}
+        url = f"{self.base_url}/v1/now"
+        headers = self._headers()
+        self.worker.submit(tag, lambda: json.dumps(post_json(url, payload, headers=headers)))
+        return True
+
     def crowd(self, what: str, tag: str = "") -> bool:
         """What the community has measured: "regrowth" (how long worked-out
         deposits took to come back) or "rig-spacing" (how close working rigs
         have gone). An older server has neither; its 404 is answered as
-        nothing measured yet."""
-        if not self.can_read or what not in ("regrowth", "rig-spacing"):
+        nothing measured yet. "tonnes" is what deposits held when they were
+        worked out (1.10042)."""
+        if not self.can_read or what not in ("regrowth", "rig-spacing", "tonnes"):
             return False
         url = f"{self.base_url}/v1/{what}"
         headers = self._headers()
@@ -1736,6 +1804,7 @@ class CommunityClient:
                 if "HTTP 404" not in str(exc):
                     raise
             return json.dumps({"all": {"reports": 0}} if what == "regrowth"
+                              else {"groups": []} if what == "tonnes"
                               else {"layouts": 0})
 
         self.worker.submit(tag or what, ask)

@@ -45,7 +45,8 @@ JOY_ACTIONS = (("location", "border", "deposit")
                + ("update", "trace")
                + tuple("rig%dup" % n for n in range(1, RIGS + 1))
                + ("allup", "rigs", "centre", "lock", "overlay", "zoom")
-               + ("wp_next", "wp_back", "wp_skip", "wp_pause"))
+               + ("wp_next", "wp_back", "wp_skip", "wp_pause")
+               + ("pin_skip", "sites"))
 
 
 def joy_key(action):
@@ -327,7 +328,10 @@ class JoystickWatcher:
 # A long press of the mouse
 # ---------------------------------------------------------------------------
 
-LONG_PRESS_S = 2.0        # held this long, a rig has gone down
+LONG_PRESS_S = 2.0        # held this long, a rig has gone down - the default
+# 1.10042: how long is the commander's to set. The hold that places a rig in
+# the game is not the same for everyone, so the count here follows theirs.
+HOLD_MIN_S, HOLD_MAX_S = 1.0, 5.0
 CLICK_MAX_S = 0.5         # shorter than this is a click on the scanner
 MAX_GAP_S = 0.5           # a look this much later than the last is not trusted
 # The game's window is found by what it is, never by what it is called: a
@@ -340,10 +344,24 @@ VK_LBUTTON, VK_RBUTTON = 0x01, 0x02
 BUTTONS = ("left", "right")
 
 
-def press_kind(seconds):
-    """What a press of this length is: "click", "between" or "rig"."""
+def hold_seconds(value):
+    """How long a hold has to be to count as a rig placed: `value` as
+    seconds, kept within HOLD_MIN_S and HOLD_MAX_S. Anything that is not a
+    number is the default."""
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError):
+        return LONG_PRESS_S
+    if seconds != seconds:      # not a number
+        return LONG_PRESS_S
+    return min(HOLD_MAX_S, max(HOLD_MIN_S, seconds))
+
+
+def press_kind(seconds, hold_s=None):
+    """What a press of this length is: "click", "between" or "rig". `hold_s`
+    is how long counts as a rig; left out, the default."""
     seconds = float(seconds)
-    if seconds >= LONG_PRESS_S:
+    if seconds >= (LONG_PRESS_S if hold_s is None else hold_seconds(hold_s)):
         return "rig"
     if seconds < CLICK_MAX_S:
         return "click"
@@ -368,6 +386,7 @@ class LongPress:
 
     def __init__(self, mode="left", learned=""):
         self.mode = mode
+        self.hold_s = LONG_PRESS_S      # 1.10042: the commander's own, when set
         self.learned = learned if learned in BUTTONS else ""
         self._since = {b: None for b in BUTTONS}
         self._fired = {b: False for b in BUTTONS}
@@ -415,7 +434,7 @@ class LongPress:
                 self._since[button] = now
                 continue
             if button in self.watching() and not self._fired[button] \
-                    and press_kind(now - self._since[button]) == "rig":
+                    and press_kind(now - self._since[button], self.hold_s) == "rig":
                 self._fired[button] = True
                 learned = self.mode == "learn" and not self.learned
                 if learned:
@@ -433,6 +452,7 @@ class HoldWatcher:
     each hold that reaches LONG_PRESS_S, and None otherwise."""
 
     def __init__(self):
+        self.hold_s = LONG_PRESS_S      # 1.10042: the commander's own, when set
         self.reset()
 
     def reset(self, down=False):
@@ -455,7 +475,7 @@ class HoldWatcher:
         if self._since is None:
             self._since = now
             return None
-        if not self._fired and press_kind(now - self._since) == "rig":
+        if not self._fired and press_kind(now - self._since, self.hold_s) == "rig":
             self._fired = True
             return True
         return None

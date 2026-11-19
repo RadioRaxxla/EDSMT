@@ -83,15 +83,23 @@ the way through; Settings → Basics turns it back on.
 
 **Not sure what something does? Rest the mouse on it.** Every control in
 every window says what it does. The first start also walks you round the
-main window once — Back, Next, Skip — and never over the game. Settings →
-Basics turns the notes off, and **Show me round again** runs the tour.
+main window once — Back, Next, Skip — and never over the game. Its card
+stays inside the EDSMT window, beside what it is talking about and clear of
+the buttons it names, and it rings each control without moving anything. It
+covers the status strip, the map and its key, the tabs, the shortcut bar,
+Settings and Help. Settings → Basics turns the notes off, and **Show me round
+again** (or **Help → Show me round**) runs the tour.
 
 **The welcome window** opens on the first start of each new version: what
 EDSMT is, **CHECK THE SETTINGS** with an **Open Settings** button, the
 headlines of what is new in this version with the full patch notes a click
 away, **Join the Discord**, radioraxxla.com and **Sign in to the site** (a
 member page for any commander, in the squadron or not), a picture of how it
-works, the community map, a **Donate with PayPal** button for Radio Raxxla,
+works, **How to customise the map** (what the marks are and where the
+switches are, with a **Map key and switches** button), the community map, a
+**Donate with PayPal** button for Radio Raxxla, an **HCS Voice Packs** button
+(an affiliate link: Radio Raxxla earns a commission at no extra cost to
+you; it is also the last entry under **Help**),
 and the user guide, bug reports, the changelog and the tour. Tick *Don't show this again* and it stays shut until
 the next version. **Help** on the top bar, and **Welcome again** in Settings
 → About, open it whenever you want.
@@ -196,8 +204,8 @@ right.
 The map works with Elite closed. It falls back to the last body you recorded
 on and centres on the finds themselves.
 
-**Drag the map** to move around it, scroll to zoom, right-click to snap back
-to you in the middle.
+**Drag the map** to move around it, scroll to zoom, right-click for
+**Recentre** (back to you in the middle), the map's key and its switches.
 
 **Back up your finds** from Settings — one dated zip with everything in it.
 Restore puts it back and keeps whatever was already there alongside, renamed
@@ -235,6 +243,16 @@ double-click does the first thing on the line and a right-click lists them
 all. Click a heading to sort; click it again to turn it round. A row is
 coloured by its cells — green for good, amber for caution — and a short cell
 such as **Why** shows its whole sentence when the mouse rests on it.
+
+**Rhinos in the totals.** Under the all-time line, with more than one Rhino in
+your sessions, Earnings gives each Rhino's tonnes. With the wing link on it
+adds a **Wing** line: your own Rhinos' total, said to be yours, because the
+wing link does not carry tonnes or credits, so wingmates' are not added in.
+
+**Export CSV.** Sessions and Find each have an **Export CSV** button beside
+Copy all. It saves what is on screen, in the order it is sorted, as a CSV file
+in UTF-8 with a byte-order mark, so Excel opens it with the accents and dashes
+right.
 
 **What the game itself says about a session.** The Sessions table checks a
 session against the game's own records where the journal has them:
@@ -365,9 +383,50 @@ and say where that signal is.
 and drive inside it and none of them is ever far enough behind for the game
 to take it (it does at 5 km). The ring stays where you put it as you drive,
 shows on the map and the scope, and the map's footer and the scope say how
-much room is left to its edge - or how far outside it you are. **Clear
-planning circle** on the same menu takes it away; **Recentre** is still the
-first thing on it.
+much room is left to its edge - or how far outside it you are. **Clear the
+planning circle (not a rig)** is on the same menu only while there is one;
+it takes the green circle away and nothing else.
+
+**What every mark is.** The **?** in the map's top right corner opens the
+map's key; so do **Map key** on the right-click menu and **Help → Map key -
+how to customise the map**, and the welcome has the same page. In short:
+
+- The **white arrow** in the middle is you. Its colour is in Settings →
+  Theme; its size (Standard, Larger, Largest) is in Settings → Overlay → Map
+  and scope.
+- The **line with a dot** beside you points at the next waypoint, the ship or
+  the parked Rhino. It is not you.
+- The **small circles** are the guided survey's waypoints: where to press
+  your mineral scanner if you don't hold it down all the time. The ringed
+  one, **WP n**, is next; grey ones are done.
+- **LANDED** is waypoint 1: where you touched down. Your ship may have left
+  since. EDSMT says so once, in words and by voice.
+- The **solid amber ring** is your survey border and the amber cross its
+  centre; the **dashed cyan circles** are the ones to drive; the **faint
+  dotted rings** are range rings round you; a red **GAP** is ground inside
+  the border not swept yet.
+- A **numbered square** is a rig. The **red and green bands** round it are
+  the spacing rings. The **dashed green 4.5 km circle** is the planning
+  circle.
+
+**A switch for each layer.** Right-click the map: under the key there is a
+tick for the survey border, the circles to drive, the range rings, the
+guided-survey points, the gaps, the pointer and the lines between deposits.
+The same switches are in the key's window and in Settings → Overlay → Map
+and scope. They apply to the map and the scope, and are kept. Hiding the
+guided-survey points does not stop the guided survey: its line of words
+stays.
+
+**Right-click what you want to change.** On or near a waypoint: **Waypoint
+n: remove it** takes it off the survey (the rest are numbered on from 1),
+and **skip it** leaves out the one you are driving to. LANDED can be removed
+the same way. On or near a rig: **Rig n: pick it up** and **Rig n: change
+commodity**. **Recentre** and the planning circle follow.
+
+**Lines between deposits.** Switched on (it starts off) and zoomed in - a
+view of 1.5 km or less, or closer than the map opened at - a thin dashed
+line joins each deposit to the one nearest it, with its length. On the scope
+they show at 2x and 4x.
 
 **Other commanders' finds are on it too.** Arrive on a body and EDSMT asks
 the community map for everything already shared there. Those finds are drawn
@@ -420,6 +479,13 @@ the compass tape, in the colour of the deposit it is on, with that deposit's
 commodity beside it. The STATUS box shows how many are down and how far the
 farthest one is.
 
+**How full each rig is.** Each tonne refined of a rig's commodity, after it
+went down, is counted against that rig, out of the 12 a rig holds: the rigs
+note shows each one's count (8/12), and **RIG 3 FULL** flashes at 12. It is
+counted from the journal, so it is exact while each rig is on its own
+commodity; with more than one rig on a commodity each tonne goes to the
+nearest, and the counts show as estimates (~8/12).
+
 Drive further than your limit from any rig (Settings → Rigs, 3,500 m unless
 you change it — the game warns at 4 km and destroys a rig at 5 km) and every
 overlay box you have open shows **TOO FAR FROM RIG**
@@ -471,6 +537,35 @@ it, and each pin goes green as a rig goes down within half the spacing of
 it. The plan and the edge you drove are saved with the deposit and come back
 when you return, and each deposit remembers how many rigs fit on it.
 
+**Skip this pin.** A boulder on the pin, or you would rather start at the far
+end: **Rig planner: skip this pin** (Settings → Keys, unbound to begin with;
+a joystick or HOTAS button can be bound to it too) points you at the next pin
+instead, as does **!rr skip** typed in chat. The pin stays on the plan; skip
+past the last one and it starts round again.
+
+### Chat commands
+
+With **Run commands I type in the game's chat** on (Settings → Keys), a
+message that starts with **!rr** is read as a command. Local chat is public:
+everyone near you reads what you type there, so use wing or squadron chat if
+you would rather they did not. Only your own messages are ever read.
+
+| Type | What it does |
+|---|---|
+| `!rr alexandrite h/m 4` | mark Alexandrite here: High amount, Medium density, 4 rigs |
+| `!rr 135 1.2km alexandrite` | mark it 1.2 km away on a bearing of 135 |
+| `!rr rig down 3`, `!rr rig up 3`, `!rr rigs up` | rig 3 down or up; every rig up |
+| `!rr centre` | move the survey centre here |
+| `!rr undo` | take back the last deposit marked |
+| `!rr signal` | log the signal here, as the signal key does |
+| `!rr border` | set the survey border here |
+| `!rr zoom` | step the scope: 1x, 2x, 4x |
+| `!rr plan` | the rig planner: start tracing the edge, or close the trace |
+| `!rr skip` | the rig planner: skip this pin |
+
+The last five are for a session with no global keys - Wayland, or a
+controller with no spare button: everything a key does there can be typed.
+
 ### Spacing rings and NEXT RIG
 
 With a rig down, every rig gets a ring of your rig spacing on the map and
@@ -478,7 +573,9 @@ the scope: red while you are too close to any of them, green once you are
 clear of them all. **NEXT RIG: 39 m, bearing 168** points to the nearest spot
 the next rig can legally go. Rigs can be counted by key, by a joystick or
 HOTAS button (Settings → Keys), by a chat command, or - if you switch it on
-in Settings → Rigs - by holding a mouse button for two seconds in the Rhino.
+in Settings → Rigs - by holding your fire button in the Rhino. **Hold for**
+sets how long counts, from 1 to 5 seconds (2 unless you change it): set it to
+the hold that places a rig for you in the game.
 
 ### Shared rig layouts
 
@@ -522,12 +619,64 @@ ticks it off for everyone. With no plan of your own you follow the wing's —
 the one with the most pins. **Split the rig plan's pins between the wing**
 turns the split off.
 
+**A wingmate's collected rigs stay in the game until you leave the planet.**
+In a wing in the same instance, a rig a wingmate has picked up does not
+disappear for you until you fly away from the body. EDSMT's wing layer is the
+true picture: the rig stays on the map and the scope, dashed and marked
+**collected**, until you leave the body.
+
 ---
 
-## My sites
+## My sites — your data window
 
-**My sites** in the title bar lists everywhere you have logged a signal or
-marked a find — every body, every system, not just the one you are on.
+**My sites** in the title bar is the one window for everything you have
+recorded: every system, body, location and deposit, not just the body you are
+on. A key of its own brings it up over the game — pick one in **Settings →
+Keys**, **My sites: bring the data window up** (a joystick button works too).
+
+The line under the title counts it all: systems, locations, deposits, the rigs
+still to be had and the tonnes mined.
+
+**The places list** on the left starts with a row a system, with its counts.
+Open a system (double-click, or **open**) and its bodies are listed under a
+heading for their kind of ground. Open a body and its locations follow, each
+one line — how many deposits and rigs, the best commodities, how many are
+worked out — and how far it is from you: metres on the body you are on, light
+years to another system when both stars are known. A body you have surveyed
+lists its **surveyed areas** too, each with a **picture** button.
+
+Pick a location and **its deposits** are listed below: the map's own top patch
+first, then the next, then the rest with the most rigs first, and the worked-out
+ones last, saying what they gave last time (`worked out (340t)`). The columns
+are rigs, where each is from the location's centre, the tonnes mined, what is
+thought to be left, amount, density and when it was marked.
+
+**The deposit card** beside them has everything about the deposit picked: its
+position, which way and how far it is from you, amount, density, the tonnes
+this time and what is left, the price known, when it was marked and whether it
+is worked out. Its buttons:
+
+| Button | What it does |
+|---|---|
+| **Guide me there** | the map and the overlay point at it until you get there, on whatever body it is; the line at the top of the window says where to go first, and **Stop guiding** lets it go. A deposit with no position or body recorded says why it cannot be guided to |
+| **Share** | copies its share line |
+| **Mark depleted** | the same as **MINED OUT**, on this deposit |
+| **Copy position** | copies its latitude and longitude |
+| **Delete** | deletes it from your records, after asking |
+
+The location's **map picture** is drawn beside the card, with its top patches
+circled; **map picture** on any site saves one and opens it.
+
+**Your own marks**: every logged location has an up and a down mark. Up sorts
+it to the top of the list in green, down to the bottom in red; press the lit
+one again to take it off. They are yours only, kept on this PC and never sent.
+
+The **Commodity** filter is followed by the whole window — the list, the places,
+the counts and the deposits. In the materials picker, **Worth mining only**
+ticks the materials selling for 100,000 Cr/t or more at the prices known now.
+**Import...** sits beside **Refresh**.
+
+The list on the right is every site, one row each:
 
 | Column | What it says |
 |---|---|
@@ -546,7 +695,10 @@ Where you are now is in green.
 ### The deposit you are on, and the one you are going to
 
 In the SRV, drive onto a deposit you marked and EDSMT picks it — **MINED OUT**,
-**UPDATE** and **Copy to share** then act on it with one click. Pick a deposit
+**UPDATE** and **Copy to share** then act on it with one click. The four boxes
+on the left (Commodity, Rigs, Amount, Density) are filled in with what is
+recorded for it, so an **UPDATE** starts from there and changes only what you
+change. Pick a deposit
 on the map or in the list and the overlay **guides you to it**: the scope and
 STATUS say **GO** with the turn and the range, and TARGETS lists it first,
 until you arrive.
@@ -626,6 +778,26 @@ RHODPLUMSITE, SIGNAL 5 LOGGED.
 | **MINERAL DEPOSIT** | one card: a labelled readout of the deposit you are nearest, telemetry for the whole signal, and a signal radar with range rings and a contact per find |
 | **GUIDE** | the step you are on, the key for it and what comes next — moves on by itself as each step is done |
 
+**Three more lines on STATUS.** **SRV fuel** in tonnes while you are in the
+SRV, with LOW beside it when the game says the tank is low; **t/h**, the
+tonnes an hour for the session under way, the same figure Earnings shows; and
+**Merits**, what the game has paid this session, only while you are pledged to
+a Power. In the box as it comes they share one short line at the bottom left
+(FUEL 0.31 t  12.4 T/H  1,250 MERITS), where the location otherwise is; drag
+the box taller and each has a row of its own under the estimate and the
+route. Each has its own switch in Settings → In-game overlay.
+
+**When the Rhino and the ship will be full.** In the Rhino, three more lines:
+**Rhino full**, how long until the Rhino holds 72 t and what it holds now;
+**Ship full**, how long until your ship's hold is full by its own cargo
+capacity, counting what the Rhino is carrying to it (it needs the ship's hold
+seen once, so board the ship after a fresh start); and **Rhino load**, how long
+your last load took from its first tonne to 72 t, with the average of the
+last five. The times come from the rate of the load under way, or of the
+session before a load has enough tonnes to go on. A load you unload before it
+is full is not timed. One switch for all three: Settings → In-game overlay,
+"STATUS line: Rhino and ship full in".
+
 **Text size, box by box.** Settings → In-game overlay has a text size for
 each box, 80% to 200%, on its own — bigger words without a bigger scope.
 
@@ -642,6 +814,18 @@ down the left edge, the targets on the right and the status along the bottom
 Every word on the scope is placed where it touches nothing else. When a
 patch is too crowded to name every find, the nearest are named and the rest
 are counted — scroll the map in the main window for the full picture.
+
+**What else the scope says.** A **scale bar** in its bottom right corner, a
+round length drawn to the scope's own scale. The header keeps **CENTRE SITE
+4.10km NE**: how far, and which way, your survey centre is from where you
+are. With a border set it reads **SWEPT 83%  2.4 km2** - the share of the
+area and the ground swept. The keys along its foot are the ones you have
+bound - site, border, deposit and rig, and where there is room the zoom key
+and the rig planner's (**Alt+- ZOOM  AltGr+2 PLAN**); **Write the keys along
+the foot of the scope** in Settings → Overlay takes them off. The zoom step
+(1x, 2x, 4x) is kept, so the scope opens on the step you left it on. The
+map's layer switches (right-click the map) apply to the scope too, and at 2x
+and 4x the lines between deposits are drawn when their switch is on.
 
 ### Putting them where you want them
 
@@ -706,24 +890,48 @@ limitation. Set Elite to **borderless** or windowed and it appears.
 
 ## Voice
 
-Everything here is in **Settings → Basics → Voice**, off until you switch
-it on, and works on Windows only - it uses Windows' own speech and tones.
+Everything here is on **Settings → Audio**: the voice, the speaking rate,
+what is said, the spoken directions, the sonar, the comm effects and the rig
+warning's sound, with **Test voice** and **What did it say?** beside them.
+It is off until you switch it on, and works on Windows only - it uses
+Windows' own speech and tones. On the first start, and once after updating
+to a version that has it, EDSMT asks **"Do you want EDSMT to speak?"** -
+Yes, No or Choose a voice - before any voice is heard, and does not ask
+again.
 
 **Voice Mode** says what EDSMT just did: signal logged, border set, deposit
 recorded, rig three down, all rigs recovered, update ready, backup complete,
 the session starting, pausing and ending, a rig plan ready, on the pin,
 half the survey area swept and all of it (once each for an area), a
 high-gravity world, the wing link up, a wingmate joining or leaving, a chat
-command not understood, and the rest. The words are the **Basic voice line pack**, in one of four
-voices: **Celestia**, **Ship computer**, **Flight controller** or **Radio
-Raxxla on-air**. **Speaking rate** sets how quickly they are read, and **Test
+command not understood, and the rest. The words are the **Basic voice line pack**, in one of five
+voices: **Celestia**, **Ship computer**, **Flight controller**, **Radio
+Raxxla on-air** or **Windows voice**. Windows voice is Windows' own speech and
+nothing else: plain words, no recordings. It works on any PC, and it sounds
+flat and robotic beside the recorded voices; it is there for anyone who
+wants it. **Speaking rate** sets how quickly they are read, and **Test
 voice** says the test line in the voice and rate in the boxes, saved or not.
+
+Celestia, the Ship computer, the Flight controller and Radio Raxxla on-air
+come recorded: every Basic line in each, free with EDSMT.
+
+Voice Mode also tells you, once for each thing it is about: a deposit worth
+a lot (one of the five best-paying on the prices known, or the best of all)
+when you mark it or drive onto it; a rich patch when you mark one in a top
+patch of three or more deposits; a deposit nearly worked out, or with plenty
+left, when you drive onto it; the best price for your cargo with the SELLING
+HERE flash; the Rhino five minutes from full, your ship one load from full,
+and the hold full (each once a load); one of yours within 2 km due a check;
+Guide me there set to another body; touchdown marking waypoint one; Skip this
+pin; an import finished; a new ribbon on the community map; and your Twitch
+live status switched on or off.
 
 **Celestia** - the Celestial Event Liaison & Tactical Information
 Algorithm, Radio Raxxla's voice of the Void - is the main voice and the one
 a new install uses. She talks to you over comms, and the comms sound
-different in the ship, in the Rhino and on foot: EDSMT picks the right one
-from where the game says you are, with nothing to set.
+different in a small, medium or large ship, in the Rhino and on foot: EDSMT
+picks the right one from where the game says you are and the ship you are
+in, with nothing to set.
 
 **Answer length** (Celestia only, for now): **Short** is a few words -
 "Deposit logged." - **Normal** is her usual lines, and **Chatty** adds to
@@ -753,11 +961,51 @@ place of the spoken line when there is one: a `.wav` named after the line,
 in a `voice` folder beside EDSMT or in the data folder, under the voice it
 belongs to - for example `voice\ship_computer\signal_logged.wav`, or for a
 voice with comms, under the place as well:
-`voice\celestia\srv\signal_logged.wav` (`ship`, `srv` or `foot`). A
+`voice\celestia\srv\signal_logged.wav` (`ship_small`, `ship`, `ship_large`,
+`srv` or `foot`). A
 recording made for a place is played as it is; otherwise Celestia's own
 recording is given that place's comm sound. The voices are `celestia`,
 `ship_computer`, `flight_controller` and `on_air`. Spoken directions (the
 distance and the clock face) are always read live.
+
+**More than one take.** A line may have several recordings: `signal_logged.wav`
+and beside it `signal_logged_2.wav`, `signal_logged_3.wav` and so on are all
+takes of the same line, in any voice. EDSMT plays one of them, never the one
+it played last time for that line and not the last two when there are enough
+to choose from. A line with one recording is played as it always was.
+Celestia comes with seventy such takes of the lines she says most, each
+said another way; **What did it say?** shows the words of the take you
+heard.
+
+**Distances and directions, said properly.** A voice that has the recordings
+says the distance and compass direction to the deposit the scope points at
+in its own voice: "Nearest deposit, two point four kilometres north-east".
+Every distance is one recording of the whole phrase - `dist_m_340` is "three
+hundred and forty metres", `dist_km_2p4` "two point four kilometres",
+`dist_km_12` "twelve kilometres" - followed by one of the sixteen compass
+points (`north`, `north_north_east`, `north_east` and so on round to
+`north_north_west`), so a number is never pieced together word by word.
+Metres are said to the nearest ten, kilometres to a tenth, and from ten
+kilometres to the whole kilometre. Celestia has all of them. If a recording
+the line needs is missing, or the distance is a hundred kilometres or more,
+the whole line is spoken by Windows, never part of it. Settings → Audio says
+how many lines and blocks the voice picked has recordings for.
+
+**Comm effects** (Celestia and the Flight controller) is on to begin with:
+their recordings are given the
+comm sound of where you are. In the ship it goes by the ship's size: a small
+ship's tight cockpit is narrower and a little boxy, a medium ship sounds as it
+always has, and a large ship's bridge is wider with a little room in it. The
+Rhino has its own short-range set and on foot the suit radio. Switch it off
+and they are played clean.
+
+**Output device.** Settings → Audio → **Output device** picks where the voice,
+the recordings and the rig warning's sound play: the system's default, or
+another output such as a headset. If the one you chose is not connected the
+default is used until it is, and your choice is kept. **Refresh devices**
+reads the list again. The proximity sonar's tones are played by Windows
+itself and always use the default device. On a system that is not Windows
+there is nothing to choose.
 
 **Spoken directions** are for a headset, where the overlay cannot be seen.
 In the Rhino, EDSMT says how far and which way to go on a clock face -
@@ -773,6 +1021,10 @@ seconds at 1,500 m, five a second inside 25 m, nothing past 2 km.
 
 The rig warning is already spoken by its own sound; Voice Mode says it only
 when that sound is switched off, so the two never talk at once.
+
+**What did it say?** Help → **What did it say?**, or the button beside Test
+voice in Settings → Audio, lists the last fifty lines the voice spoke, newest
+first, each with the time it was said.
 
 ### A VoiceAttack profile
 
@@ -857,6 +1109,42 @@ Settings → **Import another tool's CSV** also reads a `surfaceminingmap.csv` i
 either of the two layouts other surface-mining tools write. Both use the same
 file name, so the header row decides which it is — you are never asked.
 
+**Finding the file.** Opening the import window looks in the places such a
+database is kept and, if it finds one, reads it for a preview. Nothing is
+chosen by the file's name or folder: a file counts when its tables and columns
+are what a bookmark database has. A backup is offered only when the live file
+is not there. Any file you choose yourself is checked the same way.
+
+**What comes in** from a bookmark database, beyond the position of each find:
+
+- the tonnes: what is mined at a deposit this cycle, and each cycle worked out
+  as a dated figure. Only cycles opened at High measure what a deposit holds,
+  and the preview says how many those are. A cycle that was never marked
+  worked out is kept as a note line, not as a figure;
+- the dates: depleted, each look that found it still depleted, and each time
+  the other tool took the depleted mark off (a note line, with the date it
+  carried). The first date it was depleted is kept. "Last there" is the date
+  in the record, never the day you imported;
+- the last-edited date, as a note line;
+- your good and bad marks on locations. They are kept on this PC only and are
+  never shared. A mark you have already made yourself is left as it is;
+- the centre, border and swept ground of each map, so a location opens on the
+  map as it was surveyed. A centre you logged yourself is never moved, and a
+  map already held for the same area is left alone.
+
+**What is kept apart.** A bookmark with no location number is filed under "no
+location recorded", never under signal 1, and is not sent to the community map.
+A bookmark the other tool had itself taken from somebody else's shared line is
+kept for you, marked "not yours", and never sent. Bookmarks with no rigs are
+counted in the preview ("3 with no rigs") and come in without a rig count.
+
+**Map pictures.** Tick "Copy its saved map pictures too" to copy them into your
+pictures folder. It is off unless you tick it.
+
+**New since last time.** After the first import, opening the window says how
+many bookmarks were made in the other tool since ("12 new since your last
+import"). They are only offered: nothing is imported until you press Import.
+
 It never imports the same file twice — keyed on the contents, so a renamed
 copy is caught too — never overwrites a find you already have, takes a backup
 before the first row goes in, and refuses a file it does not recognise by
@@ -903,7 +1191,8 @@ beyond 2,000, +20 beyond 10,000, +30 beyond 25,000). **Powerplay overall**:
 your Power, rank and total merits as the game reports them, read from the
 journal. **Merits from mining**: what the game paid for selling what you
 mined. Each view has its own Powers table. Everyone who shares is on it
-until they press **Leave**; **Join** puts them back.
+until they press **Leave**; **Join** puts them back. The board shows twenty
+commanders a page; **Previous** and **Next** turn the pages.
 
 **Share my week** makes a card of your week on the surface — finds, sites,
 bodies and systems, your best patch, your furthest find from Sol, your
@@ -966,6 +1255,13 @@ they are, and an estimate an hour. Merits an hour read "-" until the
 community map has measured enough to say. The line above the table says how
 fresh the Powerplay state is.
 
+The **Powerplay** tab has two pages of its own: **Where it counts**, the
+systems where selling counts for your Power, and **Where to sell**. Each
+table shows twenty rows a page, with **Previous** and **Next** under it and
+a line such as *Page 2 of 7 - 132 systems*. A search runs without holding
+the window: the page says *Searching* until the answer is in, and
+everything else carries on working meanwhile.
+
 ### What the community has measured
 
 Mark one of your worked-out deposits full again and the map learns how long
@@ -975,6 +1271,10 @@ reports measured. Shared rig layouts also say how close two rigs have gone.
 Find is one search at a time: the switch at the top chooses **Sites**,
 **Still there**, **Deposits**, **Sell prices** or **Mining bodies**, only that
 search's filters are on screen, and **Search** (or Enter in any box) runs it.
+**Due a check**, the last on the switch, reads your own records and lists the
+deposits nobody has confirmed for a while, nearest first, with other
+commanders' finds on the bodies you have been to (see Keeping the map right,
+below).
 It opens on the search it was left on. Sites, Still there and Deposits are
 filtered by commodity, minimum rigs, how many different commodities sit in
 one patch, how recently anybody confirmed it and a system or body name, and
@@ -993,6 +1293,42 @@ Age is part of the ranking. Ring hotspots are permanent; surface deposits are
 not, and Frontier have said they "regenerate at a very slow rate", so a site
 nobody has touched in three months sinks below a smaller one confirmed last
 week.
+
+### Keeping the map right
+
+The map is only as good as the last person to check it. When you drive the
+SRV onto a deposit you have marked, EDSMT asks once, on the overlay and by
+voice: Still there? UPDATE or MINED OUT. UPDATE puts the Amount, Density or
+rigs you can see now onto it. MINED OUT marks it worked out and sends the
+tonnes it gave, so everyone can see what a deposit like it holds.
+
+Other commanders' finds too. Drive onto another commander's find with
+none of yours under you and EDSMT asks the same, saying whose it is. UPDATE
+says it is still there and MINED OUT that it is worked out; either goes on
+the community map for everyone. It is not asked about a find somebody
+reported today, nor one already worked out.
+
+Drive off without answering and EDSMT says so in one line and keeps the
+deposit on a short list (your own deposits only). At the next start a small window offers Still
+there, Mined out or Skip for each one. It never holds the start up, and it
+is not there when the list is empty.
+
+Each row says which deposit it is, because two deposits of one commodity in
+one location have the same name: its rigs, Amount and Density, where it lies
+from the location's centre, how far it is from you when you are on its body,
+and its position as the Rhino shows it. **Show** picks the deposit in the
+main window, on the map and in the details, and leaves it on the list.
+
+A worked-out mark stays until you take it off, or until the first tonne is
+refined there. Once enough commanders have reported how long deposits take
+to come back, a worked-out deposit says when it is expected back, and after
+that it reads "may be back - needs a check". Find has a Due a check search:
+your deposits nobody has confirmed for a while, nearest first, and other
+commanders' finds on the bodies you have been to, each saying whose it is.
+
+Checks count on the leaderboard: 2 points for an update, 3 for mined out, 5
+for finding a worked-out deposit grown back. The Site checker ribbons count
+them too.
 
 ### Sell prices
 
@@ -1019,8 +1355,9 @@ has its own switches: **Finds** posts every find you mark (commodity, rigs,
 system, body, signal, amount, density, position); **Sessions** posts a
 summary of every Rhino session when it ends — tonnes of each commodity,
 time, t/hr, credits, Cr/hr and where you sold — and updates that same
-message when the cargo is sold; **Session map** sends the map picture with
-it, and **Session card** the session card (see Streaming, below). **Test**
+message when the cargo is sold; **Session card** sends the session card with
+it (see Streaming, below) and the summary shows it, and **Session map** sends
+the map picture as well. A summary without the card shows the map. **Test**
 posts one message to that webhook, saved or not; **Remove**
 takes it off the list. If one channel refuses a post, the status line names
 it and the others still get theirs. A webhook you had before 1.10040 is
@@ -1054,6 +1391,13 @@ the next start says so. Your finds still go to the community map at once.
 mode is on. Find, Earnings and the other tools are not hidden, and nor are
 station names. Turn streamer mode off and the names are back, and anything
 held is sent.
+
+**Your live status for the Radio Raxxla Twitch bot.** Settings → Sharing → **Show my live status to
+the Radio Raxxla Twitch bot**, off unless you switch it on. While it is on, about every half minute
+EDSMT tells the community map your system and body (never a position, and not while streamer mode is
+hiding them), your ship, your ranks and how the session is going, and the bot can answer `!system`,
+`!ship`, `!rank`, `!session` and `!edsmt` in your Twitch chat. Switch it off and it is taken down at
+once; nothing of it is sent while it is off.
 
 ### Streaming
 
@@ -1095,12 +1439,16 @@ nothing on a 1080p capture is smaller than 10 pt. A size you have set bigger
 is kept.
 
 **The session card.** **Session card** on Earnings → This session, or
-**card** on any row of Sessions, makes one picture of that session: CMDR,
-body, system, date, tonnes by commodity, credits, Cr/hr, merits, time mined
-and the session's map beside them, with the EDSMT badge in a corner. It is
-saved in the pictures folder as `card_<system>_<body>_<date>.png`. On each of
-your Discord webhooks, **Session card** (off to start with) sends it with the
-session summary.
+**card** on any row of Sessions, makes one picture of that session in the
+style of the weekly card: CMDR, body, system and date along the top, four
+tiles of tonnes, credits, Cr/hr and merits, then what was mined, the
+session's map and the time mined with the rate and the sale, with the EDSMT
+badge in a corner. Once anything is sold it shows the sale, not the
+estimate. It is saved in the pictures folder as
+`card_<system>_<body>_<date>.png`. On each of your Discord webhooks,
+**Session card** (on to start with, and switched on once for webhooks saved
+before 1.10042) sends it with the session summary, and the card is drawn
+again with the sale when the summary is updated.
 
 ### Your Radio Raxxla account
 
@@ -1155,12 +1503,37 @@ A backup carries your finds, signals, sessions, settings and their dated
 copies, and the ground you have swept on every body; restoring one puts its
 settings back straight away.
 
+**A backup at every start.** Each time EDSMT starts, it writes one dated zip
+of your settings, finds, sessions and survey to `C:\EDTools\Backup\RadioRaxxla\EDSMT`
+(on Linux, `~/EDTools/Backup/RadioRaxxla/EDSMT`) and keeps the newest thirty.
+It runs after the window is up, so it never slows the start. Keys and tokens
+are left out of the zip. Settings → Your data says where it is and has an
+**Open backup folder** button. The same page shows how many map pictures are
+saved and how much room they take.
+
+**Settings to a file and back.** Settings → Your data →
+**Save settings to a file** writes your settings to a file you pick, with no
+keys or tokens in it, for another PC or to keep. **Load settings from a file**
+reads one back:
+settings EDSMT does not know are ignored, a value of the wrong kind is
+ignored, and your own keys and tokens are left as they are. The settings you
+had are kept beside the new ones.
+
 **Running it off a USB stick?** Put an empty file called `portable.txt` next
 to `EDSMT.exe` and it keeps everything in a `data` folder beside itself
 instead, so the stick carries your finds with it. Copy your existing files
 across first if you have any — it does not move them for you.
 
 ---
+
+### Going back to the previous version
+
+On the single-file (portable) build, an update keeps the program file it
+replaced, one copy, beside the new one as `EDSMT.exe.previous`. While it is
+there, **Help → Go back to the previous version** appears; it asks first, then
+puts that file back and starts it. Your finds and settings are not touched.
+The installed build does not keep one: Setup replaces a whole folder, so go
+back by running the older Setup from the downloads page.
 
 ## Linux
 

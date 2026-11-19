@@ -35,6 +35,12 @@ def check(label, cond, extra=""):
 VERSION = edonline.APP_VERSION
 TMP = tempfile.mkdtemp(prefix="edsmt-publish-")
 
+# 1.10042: whether the source zip holds the whole project has its own test
+# (test_110042_sourcezip.py). The uploads made here are stand-ins of a few
+# bytes each, so that question is not asked of them: it would be answered
+# one way in a checkout that has git and another in an unpacked copy.
+PR.source_problems = lambda upload, repo=None: []
+
 
 def make_upload(name, version=VERSION, tamper=None, drop=None):
     up = os.path.join(TMP, name)

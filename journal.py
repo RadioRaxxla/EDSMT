@@ -202,7 +202,8 @@ EVENT_NAME_WITHIN = 200
 # signals, ships targeted) is most of its lines, and none of it is parsed.
 OTHER_READ_EVENTS = {"SendText", "Fileheader", "Continued", "LaunchVessel",
                      "Loadout", "ShipyardSwap", "EjectCargo", "FSSDiscoveryScan",
-                     "FSSAllBodiesFound", "Cargo", "MiningRefined", "Statistics"}
+                     "FSSAllBodiesFound", "Cargo", "MiningRefined", "Statistics",
+                     "Rank"}
 # Set by the app to a real path in its data folder. Blank means nowhere:
 # a reader driven by a test must not leave a log beside the code, where it
 # would be committed.
@@ -714,6 +715,7 @@ class JournalWatcher:
         self.problem = ""
         self.on_foot = False           # Odyssey, from Flags2 - not Flags
         self.low_fuel = False          # Flags bit 19, ship or SRV
+        self.fuel_main = None          # Status.json Fuel.FuelMain, tonnes, or None
         self.gliding = False
         self.game_version = ""         # from Fileheader, e.g. "4.4.1.0"
         self.journal_part = 1
@@ -781,6 +783,9 @@ class JournalWatcher:
         # total is that figure plus what CargoTransfer has moved since.
         self.ship_id = None            # the ship's own ID, LoadGame / Loadout
         self.ship_type = ""
+        self.ship_label = ""           # the game's own words for the ship, to show
+        self.ship_name = ""            # the name the commander gave it
+        self.ranks = {}                # Rank: the journal's numbers, as given
         self.capacities = {}           # ship ID -> (CargoCapacity, when)
         self.max_jump_ly = None        # Loadout MaxJumpRange, the ship's own
         self.ship_total = None         # tonnes in the ship; None = not seen
@@ -1090,6 +1095,8 @@ class JournalWatcher:
         self.in_srv = bool(flags & FLAG_IN_SRV)
         # The game's own low-fuel flag, in whatever is being driven.
         self.low_fuel = bool(flags & FLAG_LOW_FUEL)
+        fuel = data.get("Fuel")
+        self.fuel_main = number(fuel.get("FuelMain")) if isinstance(fuel, dict) else None
         self.in_ship = bool(flags & FLAG_IN_MAIN_SHIP)
         self.gliding = bool(flags2 & FLAG2_GLIDE)
         height = number(data.get("Altitude"))
@@ -1476,6 +1483,13 @@ class JournalWatcher:
             # In SRV flag like a Rhino but carries no rigs and mines nothing.
             if name == "LaunchVessel":
                 self._vehicle(name, event)
+                continue
+
+            if name == "Rank":
+                # The commander's ranks, as the game numbers them (1.10042).
+                self.ranks = {key: event.get(key) for key in
+                              ("Combat", "Trade", "Explore", "Soldier", "Exobiologist", "CQC")
+                              if isinstance(event.get(key), int)}
                 continue
 
             if name == "Loadout":
@@ -2104,11 +2118,19 @@ class JournalWatcher:
             ship_id = int(event.get("ShipID"))
         except (TypeError, ValueError):
             return
-        if ship_id != self.ship_id:
+        another = ship_id != self.ship_id
+        if another:
             # Another ship: the hold being counted is not this one's.
             self.ship_total = None
         self.ship_id = ship_id
         self.ship_type = str(event.get("Ship") or self.ship_type or "")
+        # To show, never to match (1.10042): the game's own words for the
+        # ship where the event carries them, and the name it was given.
+        shown = str(event.get("Ship_Localised") or event.get("ShipType_Localised") or "")
+        if shown or another or not self.ship_label:
+            self.ship_label = shown or str(event.get("Ship") or "")
+        if "ShipName" in event:
+            self.ship_name = str(event.get("ShipName") or "")
         if event.get("event") == "Loadout" and event.get("CargoCapacity") is not None:
             self.capacities[ship_id] = (whole(event.get("CargoCapacity")),
                                         str(event.get("timestamp") or ""))

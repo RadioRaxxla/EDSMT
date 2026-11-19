@@ -24,14 +24,19 @@ argument, so the checks hand it a stand-in.
 
 import atexit
 import base64
+import collections
 import math
 import os
 import queue
 import random
 import re
+import tempfile
 import threading
+import time
 
+import audiodev as AD
 import commfx as CFX
+import voiceblocks as VB
 
 PACK_NAME = "Basic voice line pack"
 
@@ -41,7 +46,9 @@ PACK_NAME = "Basic voice line pack"
 THEMES = (("celestia", "Celestia"),
           ("ship_computer", "Ship computer"),
           ("flight_controller", "Flight controller"),
-          ("on_air", "Radio Raxxla on-air"))
+          ("on_air", "Radio Raxxla on-air"),
+          # Windows' own speech and nothing else: plain words, no recording.
+          ("windows", "Windows voice"))
 THEME_KEYS = tuple(key for key, _name in THEMES)
 DEFAULT_THEME = "celestia"
 # The three themes of the first table, in its column order.
@@ -49,11 +56,13 @@ _TABLE_KEYS = ("ship_computer", "flight_controller", "on_air")
 
 # Where the commander is, for the comm sound a line is recorded with:
 # voice/<theme>/<place>/<id>.wav. In the ship, in the Rhino SRV, on foot.
-PLACES = ("ship", "srv", "foot")
+PLACES = ("ship", "srv", "foot", "ship_small", "ship_large")
 DEFAULT_PLACE = "ship"
 # The voices that come over comms: recorded clean, given the place's comm
 # sound by commfx before they are played.
-COMMS_THEMES = ("celestia",)
+# The voices heard over the comms, given the sound of where you are. The
+# Flight controller since 1.10042, when its recordings shipped.
+COMMS_THEMES = ("celestia", "flight_controller")
 
 # How much she says (Celestia for now; the other voices have one length).
 # Short: the brief line. Normal: her full line, and the voice-pack
@@ -192,6 +201,59 @@ _TABLE = {
     "chat_unknown": ("Command not recognised.",
                      "Say again. Command unknown.",
                      "Didn't catch that one."),
+    # 1.2: the new Basic lines (basiccues.py says when), approved 19 Nov
+    # 2026. Ship computer, Flight controller, Radio Raxxla on-air.
+    "value_top": ("High value deposit. One of the top five. Check Earnings.",
+                  "High value deposit. Top five on the map. Check Earnings.",
+                  "Now that's a good one. Top five on the map. Have a look at Earnings."),
+    "value_best": ("Top value deposit. The best price on the map.",
+                   "Best price on the map. That's the one.",
+                   "That's the big one. Nothing on the map pays better."),
+    "rich_patch": ("Rich patch. Several deposits close together.",
+                   "Rich patch. Multiple deposits in close.",
+                   "Lovely patch, this. They're packed in tight."),
+    "sell_here": ("Good price here for your cargo.",
+                  "Best price for your cargo is here.",
+                  "Sell here. You won't do better nearby."),
+    "hold_full": ("Hold full.",
+                  "Hold full.",
+                  "That's a full hold."),
+    "nearly_out": ("This one is nearly worked out.",
+                   "Deposit nearly depleted.",
+                   "Not much left in this one."),
+    "plenty_left": ("Plenty left in this one.",
+                    "Plenty left in this deposit.",
+                    "Barely touched, this one. Plenty left."),
+    "due_check": ("A deposit near you is due a check.",
+                  "Deposit nearby is due a check.",
+                  "One near you is due a check."),
+    "guide_far": ("Guidance set. Travel to the body first.",
+                  "Guidance set. Proceed to the body.",
+                  "Guidance is set. Get to the body first."),
+    "landed_marked": ("Touchdown. Waypoint one marked.",
+                      "Touchdown. Waypoint one marked.",
+                      "Touchdown. I've marked where you parked."),
+    "pin_skipped": ("Pin skipped.",
+                    "Pin skipped.",
+                    "Skipping that one."),
+    "import_done": ("Import complete.",
+                    "Import complete.",
+                    "Import's done. Your old finds are on the map."),
+    "ribbon_earned": ("New ribbon earned.",
+                      "New ribbon earned.",
+                      "New ribbon. Well done, you."),
+    "live_on": ("Live status on.",
+                "Live status on.",
+                "Live status on. We're on air."),
+    "live_off": ("Live status off.",
+                 "Live status off.",
+                 "Live status off."),
+    "rhino_full_soon": ("Rhino full in five minutes.",
+                        "Rhino full in five minutes.",
+                        "Five minutes and the Rhino's full."),
+    "ship_full_soon": ("Ship nearly full. One more load.",
+                       "Ship nearly full. One more load.",
+                       "One more load and the ship's full."),
 }
 for _n, _word in enumerate(_NUMBERS, 1):
     _TABLE["rig_down_%d" % _n] = ("Rig %s deployed." % _word,
@@ -248,6 +310,25 @@ _CELESTIA = {
     "wing_clash": "Careful. That rig's crowding a wingmate's.",
     "chat_ok": "Heard you.",
     "chat_unknown": "[scoffs] Unverified signal. Try that again, properly.",
+    # 1.2: the new Basic lines, approved 19 Nov 2026. hold_full is her
+    # reaction's second take, recorded already: it fits the Rhino and the ship.
+    "value_top": "Oh, get this one, Commander. It's worth a lot. Top five on the map... check your Earnings tab.",
+    "value_best": "[excited] That's the big one, Commander. Nothing on the map pays better.",
+    "rich_patch": "Now this is a patch. They're packed in here, Commander. Stay a while.",
+    "sell_here": "Sell here, Commander. You won't do better nearby.",
+    "hold_full": "Full. Not one more rock fits.",
+    "nearly_out": "Not much left in this one. Take what's there and move on.",
+    "plenty_left": "Barely touched. There's plenty here, Commander.",
+    "due_check": "One of ours nearby hasn't been looked at in a while. Shall we?",
+    "guide_far": "I've got it pinned. Get us to that body and I'll take it from there.",
+    "landed_marked": "Touchdown marked. I'll remember where we parked.",
+    "pin_skipped": "Skipping that one. Next.",
+    "import_done": "All in, Commander. Your old finds are on the map.",
+    "ribbon_earned": "[laughs] A new ribbon, Commander. It suits you.",
+    "live_on": "We're on show, Commander. Behave.",
+    "live_off": "Curtain's down.",
+    "rhino_full_soon": "Five minutes and she's full, Commander.",
+    "ship_full_soon": "One more load and the ship's full. Then we sell.",
 }
 for _n, _word in enumerate(_NUMBERS, 1):
     _CELESTIA["rig_down_%d" % _n] = "Rig %s, down." % _word
@@ -386,6 +467,14 @@ REACTION_IDS = tuple(k for k in EXTRA if k.startswith("react_"))
 LORE_IDS = tuple(k for k in EXTRA if k.startswith("lore_"))
 
 
+# Lines said in Windows' own voice only (1.10042): no recording in any pack,
+# so they are not part of the Basic voice line pack above.
+SPOKEN_ONLY = {
+    # 1.10042: asked once on driving onto a deposit you have marked. (The
+    # touchdown waypoint line is recorded from 1.2: landed_marked.)
+    "still_there": "Still there? Update, or mined out."}
+
+
 def _plain(text):
     """A line without its acting directions: what Windows' voice reads."""
     return re.sub(r"\s+", " ", re.sub(r"\[[^\]]*\]", " ", str(text or ""))).strip()
@@ -424,6 +513,14 @@ def take_count(line_id, theme=DEFAULT_THEME):
     return len(TAKES.get(str(line_id), ()))
 
 
+# The Windows voice (1.10042): the Ship computer's plain words, read by
+# Windows' own speech. No recording is shipped for it, so it never changes
+# with the packs: it works on any PC and sounds like what it is.
+WINDOWS_THEME = "windows"
+for _words in LINES.values():
+    _words[WINDOWS_THEME] = _words.get("ship_computer", "")
+
+
 def clean_theme(theme):
     """A theme key, whatever was saved: its key or its name, else
     Celestia."""
@@ -456,20 +553,25 @@ def script(line_id, theme=DEFAULT_THEME, detail=DEFAULT_DETAIL, take=1):
     return LINES.get(line_id, {}).get(theme, "")
 
 
-def place_of(in_srv=False, on_foot=False):
-    """Where the commander is: the Rhino SRV, on foot, else the ship."""
+def place_of(in_srv=False, on_foot=False, ship_type=""):
+    """Where the commander is: the Rhino SRV, on foot, else the ship - by
+    its size since 1.10042 (ship_small, ship, ship_large; a ship not known
+    is a medium one)."""
     if in_srv:
         return "srv"
     if on_foot:
         return "foot"
-    return DEFAULT_PLACE
+    return CFX.ship_place(ship_type)
 
 
-def place_from(state):
+def place_from(state, ship_type=None):
     """place_of() for the game's state, whatever it is; the ship when it
-    says nothing."""
+    says nothing. The ship's size from `ship_type`, else the state's own."""
+    if ship_type is None:
+        ship_type = getattr(state, "ship_type", "")
     return place_of(in_srv=getattr(state, "in_srv", False) is True,
-                    on_foot=getattr(state, "on_foot", False) is True)
+                    on_foot=getattr(state, "on_foot", False) is True,
+                    ship_type=ship_type if isinstance(ship_type, str) else "")
 
 
 def clean_place(place):
@@ -511,10 +613,171 @@ def recording(line_id, theme, folders, place=None, detail=DEFAULT_DETAIL, take=1
     return ""
 
 
-def needs_comms(path, theme):
+# 1.10042 (G3): files <id>_2.wav, <id>_3.wav ... beside <id>.wav are more
+# takes of the same line. How many lately played takes are not played again
+# (at least one fewer than there are, so there is always one to play).
+TAKES_REMEMBERED = 2
+TAKE_FILE = re.compile(r"^(?P<stem>.+)_(?P<n>\d+)\.wav$", re.IGNORECASE)
+
+
+def _take_names(line_id, place, detail):
+    names = [os.path.join(clean_place(place), "%s" % line_id)] if place else []
+    if clean_detail(detail) == "short":
+        names.append(os.path.join("short", "%s" % line_id))
+    names.append("%s" % line_id)
+    return names
+
+
+def recording_takes(line_id, theme, folders, place=None, detail=DEFAULT_DETAIL):
+    """Every take of a line's recording, the plain file first and then _2,
+    _3 ... in number order, from the first place that has any (the same
+    places, in the same order, as recording()). [] when there is none."""
+    theme, line_id = clean_theme(theme), str(line_id)
+    for stem in _take_names(line_id, place, detail):
+        for folder in folders or ():
+            if not folder:
+                continue
+            path = os.path.join(folder, "voice", theme, stem + ".wav")
+            where, base = os.path.split(path)
+            found = [path] if os.path.isfile(path) else []
+            try:
+                names = os.listdir(where)
+            except OSError:
+                names = []
+            extra = []
+            wanted = os.path.splitext(base)[0].lower()
+            for name in names:
+                hit = TAKE_FILE.match(name)
+                if hit and hit.group("stem").lower() == wanted and int(hit.group("n")) >= 2 \
+                        and os.path.isfile(os.path.join(where, name)):
+                    extra.append((int(hit.group("n")), os.path.join(where, name)))
+            found.extend(p for _n, p in sorted(extra))
+            if found:
+                return found
+    return []
+
+
+def pick_file(takes, recent, rng=random):
+    """One of the take files, never one of the last few played (`recent`,
+    paths, newest last). One take is always that take."""
+    takes = list(takes or ())
+    if len(takes) < 2:
+        return takes[0] if takes else ""
+    avoid = list(recent or ())[-min(TAKES_REMEMBERED, len(takes) - 1):]
+    return rng.choice([t for t in takes if t not in avoid] or takes)
+
+
+# 1.10042: Celestia's later recordings (<id>_2.wav, <id>_3.wav) say a line
+# another way. Their words by file name, acting directions and all, as they
+# were recorded: What did it say? shows the words that were heard.
+TAKE_SCRIPTS = {"celestia": {
+    "signal_logged_2": "Signal's ours, Commander. Centre marked.",
+    "signal_logged_3": "[curious] Found you. Centre's marked, Commander.",
+    "border_set_2": "That's our fence, Commander. Now let's see what's inside it.",
+    "border_set_3": "Border's in. Stay inside it and we'll get along.",
+    "deposit_marked_2": "Marked. [curious] Oh, I like this one.",
+    "deposit_marked_3": "On the map, Commander. One more the Void didn't keep.",
+    "deposit_updated_2": "Changed. The map thanks you. So do I.",
+    "deposit_updated_3": "Updated, Commander. Tidy records, tidy mind.",
+    "mined_out_2": "That's the last of it. Let it sleep.",
+    "mined_out_3": "Empty, Commander. I've written it down so nobody wastes a trip.",
+    "rigs_full_2": "Six down, six working. [giggles] Look at them go.",
+    "rigs_full_3": "That's the full set, Commander. Now we let them earn their keep.",
+    "rigs_all_up_2": "All aboard. Nobody left behind.",
+    "rigs_all_up_3": "Rigs are home, Commander. Where next?",
+    "plan_ready_2": "Pins are set, Commander. I've done the sums so you needn't.",
+    "plan_ready_3": "There. A plan. Follow the pins and try not to improvise.",
+    "swept_half_2": "Halfway, Commander. Don't stop now, it's just getting good.",
+    "swept_half_3": "Half the patch done. The rest is still keeping secrets.",
+    "swept_done_2": "Swept, every bit of it. [laughs] Thorough. I approve.",
+    "swept_done_3": "That's the lot, Commander. Nothing left unlooked-at.",
+    "session_start_2": "And we're on the clock. Show me something shiny.",
+    "session_start_3": "Session's running, Commander. Off we go.",
+    "session_paused_2": "Paused. I'll keep your place.",
+    "session_paused_3": "Clock's stopped. Stretch your legs, I'll mind the rocks.",
+    "session_resumed_2": "Clock's running again. Good. I was getting bored.",
+    "session_resumed_3": "Back to work, Commander. The rocks missed you.",
+    "session_end_2": "Session's done. [curious] Shall we see what the Void paid us?",
+    "session_end_3": "And that's time. Good shift, Commander.",
+    "none_in_range_2": "Nothing near you on the map. Unmapped ground... my favourite kind.",
+    "none_in_range_3": "No finds round here yet, Commander. Be the first.",
+    "bodies_ranked_2": "Landing list's ready. The best one's at the top, obviously.",
+    "bodies_ranked_3": "I've sorted where to land, Commander. Start at the top.",
+    "deploy_clear_2": "That's low enough. Out you go.",
+    "deploy_clear_3": "Clear to deploy. Take the Rhino for a walk.",
+    "online_2": "Celestia here. Did you miss me, Commander? I'll take that as a yes.",
+    "online_3": "[curious] Online. Something out there needs digging up. I can feel it.",
+    "backup_done_2": "Saved. Everything you've found, tucked away safe.",
+    "backup_done_3": "Backup's done, Commander. One less thing to worry about.",
+    "deposit_already_2": "We have that one, Commander. I never forget a rock.",
+    "deposit_already_3": "[laughs] Already mapped. Nice to know we agree.",
+    "deposit_incomplete_2": "Not yet, Commander. I need all four details before it goes on the map.",
+    "deposit_incomplete_3": "[sighs] Something's missing. All four, please.",
+    "plan_trace_start_2": "Take me round the edge, Commander. All the way, back to the start.",
+    "plan_trace_start_3": "Drive the outline for me. I'll work out the rest.",
+    "plan_cancelled_2": "Plan's gone. We'll do it your way, then.",
+    "plan_cancelled_3": "Cancelled. I'll keep the pins to myself.",
+    "rigs_cleared_relog_2": "Old rigs wiped. Starting clean.",
+    "rigs_cleared_relog_3": "Cleared, Commander. Nothing left over from last time.",
+    "wing_linked_2": "Wing link's live. [curious] Hello, everyone.",
+    "wing_linked_3": "Linked, Commander. Let's show them how it's done.",
+    "wing_mate_joined_2": "A new wingmate. The more the merrier. Mostly.",
+    "wing_mate_joined_3": "Someone's joined, Commander. Make room.",
+    "wing_mate_left_2": "One's gone, Commander. Their loss.",
+    "wing_mate_left_3": "A wingmate's left us. I'll keep their seat warm.",
+    "chat_unknown_2": "[sighs] That meant nothing to me, Commander. Try again.",
+    "chat_unknown_3": "Didn't catch that one. Once more?",
+    "rig_down_1_2": "One's down.",
+    "rig_up_1_2": "One's home.",
+    "rig_down_2_2": "Two's down.",
+    "rig_up_2_2": "Two's home.",
+    "rig_down_3_2": "Three's down.",
+    "rig_up_3_2": "Three's home.",
+    "rig_down_4_2": "Four's down.",
+    "rig_up_4_2": "Four's home.",
+    "rig_down_5_2": "Five's down.",
+    "rig_up_5_2": "Five's home.",
+    "rig_down_6_2": "Six is down.",
+    "rig_up_6_2": "Six is home.",
+    "pin_reached_2": "This is it. Rig down.",
+    "arrived_2": "That's the spot.",
+}}
+TAKE_WORDS = {_theme: {_name: _plain(_words) for _name, _words in _takes.items()}
+              for _theme, _takes in TAKE_SCRIPTS.items()}
+
+
+def take_words(path, theme):
+    """The words of a later take's recording, from its file name. "" for a
+    line's first recording, or a take whose words are not listed."""
+    stem = os.path.splitext(os.path.basename(str(path or "")))[0].lower()
+    return TAKE_WORDS.get(clean_theme(theme), {}).get(stem, "")
+
+
+def unrecorded(theme, folders):
+    """The ids of the pack's lines that have no recording in a theme in any
+    of the folders - in any place, any take - sorted: the list still to
+    record (1.10042)."""
+    theme = clean_theme(theme)
+    left = []
+    for line_id in sorted(LINES):
+        if not any(recording_takes(line_id, theme, folders, place=place)
+                   for place in (None,) + PLACES):
+            left.append(line_id)
+    return left
+
+
+def missing_blocks(theme, folders):
+    """The ids of the building blocks (voiceblocks.py) that have no recording
+    in a theme in any of the folders, sorted: the list still to record."""
+    theme = clean_theme(theme)
+    return [ident for ident in sorted(VB.ALL_BLOCKS) if not recording_takes(ident, theme, folders)]
+
+
+def needs_comms(path, theme, comms=True):
     """True when a recording is to be given its place's comm sound: a voice
-    with comms, recorded clean (not one made for a place)."""
-    if clean_theme(theme) not in COMMS_THEMES or not path:
+    with comms, recorded clean (not one made for a place), unless comm
+    effects are switched off (1.10042)."""
+    if not comms or clean_theme(theme) not in COMMS_THEMES or not path:
         return False
     return os.path.basename(os.path.dirname(path)) not in PLACES
 
@@ -562,7 +825,8 @@ def clock_words(offset_deg):
 
 def distance_words(metres):
     """"340 metres" to the nearest ten under a kilometre, "1.2 kilometres"
-    beyond it, "1 metre" for one."""
+    beyond it, whole kilometres from ten ("12 kilometres"), "1 metre" for
+    one."""
     try:
         value = max(0.0, float(metres))
     except (TypeError, ValueError):
@@ -574,10 +838,24 @@ def distance_words(metres):
     if tens < 1000:
         return "%d metres" % tens
     km = round(value / 1000.0, 1)
+    if km >= 10:
+        return "%d kilometres" % int(round(value / 1000.0))
     if float(km).is_integer():
         whole = int(km)
         return "%d kilometre%s" % (whole, "" if whole == 1 else "s")
     return "%.1f kilometres" % km
+
+
+def direction_text(lead_words, metres, bearing):
+    """What the Windows voice says for a distance and a compass direction -
+    "Nearest deposit, 2.4 kilometres north-east" - or "" when there is no
+    bearing to say (1.10042)."""
+    point = VB.block_words(VB.compass_blocks(bearing))
+    if not point:
+        return ""
+    lead = re.sub(r"\s+", " ", str(lead_words or "")).strip().rstrip(".")
+    span = "%s %s" % (distance_words(metres), point)
+    return "%s, %s" % (lead, span) if lead else span
 
 
 def direction_words(name, metres, offset_deg):
@@ -703,8 +981,24 @@ def wing_line(first, joined, left):
 # One line at a time, in order, so nothing talks over anything else.
 SPEECH_SCRIPT = "\n".join((
     "$ErrorActionPreference = 'Stop'",
-    "Add-Type -AssemblyName System.Speech",
-    "$voice = New-Object System.Speech.Synthesis.SpeechSynthesizer",
+    # 1.10042: what fails is reported on the error stream, one line each -
+    # "E <kind> <reason>", kind being the line's letter or ! for speech
+    # itself. A PC whose speech will not load still plays the recordings.
+    # Windows PowerShell also writes its own progress records to the error
+    # stream when that is read by a program; they are switched off here,
+    # and the reader takes only the lines that begin "E ".
+    "$ProgressPreference = 'SilentlyContinue'",
+    # The reason nearest the fault: .NET wraps it ("Exception calling ...")
+    # and the one inside says what actually went wrong.
+    "function Why($e) {",
+    "  if ($e.Exception.InnerException) { $e.Exception.InnerException.Message }",
+    "  else { $e.Exception.Message }",
+    "}",
+    "$voice = $null",
+    "try {",
+    "  Add-Type -AssemblyName System.Speech",
+    "  $voice = New-Object System.Speech.Synthesis.SpeechSynthesizer",
+    "} catch { $voice = $null; [Console]::Error.WriteLine('E ! ' + (Why $_)) }",
     "$lines = New-Object System.IO.StreamReader([Console]::OpenStandardInput(), "
     "[System.Text.Encoding]::UTF8)",
     "while ($true) {",
@@ -714,10 +1008,13 @@ SPEECH_SCRIPT = "\n".join((
     "  $what = $line.Substring(0, 1)",
     "  $rest = $line.Substring(2)",
     "  try {",
-    "    if ($what -eq 'R') { $voice.Rate = [int]$rest }",
-    "    elseif ($what -eq 'S') { $voice.Speak($rest) }",
+    "    if ($what -eq 'R') { if ($voice -ne $null) { $voice.Rate = [int]$rest } }",
+    "    elseif ($what -eq 'S') {",
+    "      if ($voice -eq $null) { throw 'Windows speech is not available on this PC' }",
+    "      $voice.Speak($rest)",
+    "    }",
     "    elseif ($what -eq 'W') { (New-Object System.Media.SoundPlayer $rest).PlaySync() }",
-    "  } catch { }",
+    "  } catch { [Console]::Error.WriteLine('E ' + $what + ' ' + (Why $_)) }",
     "}",
 ))
 # A window of its own would flash up over the game.
@@ -728,12 +1025,49 @@ QUEUE_MAX = 8
 # A process that keeps dying is not started for ever.
 MAX_STARTS = 3
 LINE_MAX = 300
+# 1.10042: how many problems are remembered, how long a problem's words may
+# be, and how long Test voice waits before it says how it went - long enough
+# for the speech process to start and fail.
+PROBLEMS_KEPT = 5
+PROBLEM_MAX = 220
+TEST_WAIT_S = 2.5
 
 
 def speakable(text):
     """One line of plain text, no control characters, at most LINE_MAX."""
     text = re.sub(r"[\x00-\x1f\x7f]+", " ", str(text or ""))
     return re.sub(r"\s+", " ", text).strip()[:LINE_MAX]
+
+
+def explain_problem(text):
+    """What the speech process reported, in plain words, or "".
+
+    It reports "E W <reason>" for a recording, "E S <reason>" for a spoken
+    line and "E ! <reason>" for speech itself; anything else is passed on
+    as it came. One line, at most PROBLEM_MAX."""
+    words = speakable(text)
+    if not words:
+        return ""
+    lead = {"E W ": "A recording could not be played: ",
+            "E S ": "Windows could not speak the line: ",
+            "E R ": "The speaking rate could not be set: ",
+            "E D ": "The audio device could not be used, so the default is used: ",
+            "E ! ": "Windows' speech could not be started: "}
+    for mark, said in lead.items():
+        if words.startswith(mark):
+            words = said + words[len(mark):].strip()
+            break
+    return words[:PROBLEM_MAX]
+
+
+def test_report(problem, words, voice_name, rate_name):
+    """(what Test voice says, "ok" or "bad"), once it has waited for the
+    result. `problem` is the speaker's newest problem since the test began."""
+    problem = str(problem or "").strip()
+    if problem:
+        return ("The voice could not speak (%s, %s). %s" % (voice_name, rate_name, problem), "bad")
+    return ("Spoken: \"%s\" (%s, %s). If you heard nothing, check the sound device "
+            "Windows is playing to." % (words, voice_name, rate_name), "ok")
 
 
 def powershell_command(script=SPEECH_SCRIPT, root=None):
@@ -754,10 +1088,41 @@ def windows_spawn():
 
     def spawn():
         import subprocess
+        # stderr is read (1.10042): it is where the script says what failed.
         return subprocess.Popen(powershell_command(), stdin=subprocess.PIPE,
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                                 creationflags=CREATE_NO_WINDOW)
     return spawn
+
+
+def windows_spawn_device():
+    """What starts the speech process that plays on a chosen device (1.10042);
+    None anywhere but Windows."""
+    if os.name != "nt":
+        return None
+
+    def spawn():
+        import subprocess
+        return subprocess.Popen(powershell_command(AD.DEVICE_SPEECH_SCRIPT), stdin=subprocess.PIPE,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                                creationflags=CREATE_NO_WINDOW)
+    return spawn
+
+
+HISTORY_KEPT = 50
+
+
+def history_rows(history):
+    """[(clock, words)] for the "What did it say?" window, newest first, from
+    Speaker.history(). The clock is the local time as HH:MM:SS."""
+    rows = []
+    for when, words in history or ():
+        try:
+            clock = time.strftime("%H:%M:%S", time.localtime(float(when)))
+        except (TypeError, ValueError, OverflowError, OSError):
+            continue
+        rows.append((clock, str(words)))
+    return rows
 
 
 class Speaker:
@@ -771,11 +1136,21 @@ class Speaker:
 
     def __init__(self, spawn=None, folders=(), rate=0, cache_dir=""):
         self.spawn = spawn if spawn is not None else windows_spawn()
+        # The process that plays on a chosen device (1.10042, G2); a Speaker
+        # handed its own spawn has none, so a device is ignored.
+        self.spawn_device = windows_spawn_device() if spawn is None else None
+        self.device = ""
+        self._sent_device = None
+        self._pointed = False
         self.folders = list(folders)
         # Where a line given its comm sound is kept (commfx).
         self.cache_dir = cache_dir
+        # Whether Celestia's recordings are given the place's comm sound.
+        self.comms = True
         self._random = random.Random()
         self._last_take = {}
+        # The take files played lately, for each line (1.10042).
+        self._recent = {}
         self.rate = clean_rate(rate)
         self.proc = None
         self.starts = 0
@@ -786,13 +1161,76 @@ class Speaker:
         self._thread = None
         self._lock = threading.Lock()
         self._atexit = False
+        self._problems = collections.deque(maxlen=PROBLEMS_KEPT)
+        self._gave_up = False
+        # What was said, the last HISTORY_KEPT lines, each with its time
+        # (1.10042). Every line goes through _send, so it is noted there.
+        self._said = collections.deque(maxlen=HISTORY_KEPT)
+
+    def history(self):
+        """The lines said, newest first, as (time.time(), words). Never raises."""
+        return list(reversed(list(self._said)))
 
     @property
     def available(self):
         return self.spawn is not None and not self.closed
 
+    # -- what went wrong (1.10042) ----------------------------------------
+    def _note(self, text):
+        """Remember a problem, in plain words, with when it happened."""
+        words = explain_problem(text)
+        if words:
+            self._problems.append((time.time(), words))
+
+    def problem(self, since=None):
+        """The newest problem, or "" for none - none since `since` (a
+        time.time()) when one is given. Never raises."""
+        for when, words in reversed(list(self._problems)):
+            if since is None or when >= since:
+                return words
+            break
+        return ""
+
+    def _listen(self, proc):
+        """Read what a process reports about its failures, to its end. On a
+        thread of its own, so a full pipe never stops the process."""
+        stream = getattr(proc, "stderr", None)
+        if stream is None:
+            return
+
+        def read():
+            try:
+                for raw in iter(stream.readline, b""):
+                    # Only the script's own reports. Windows PowerShell
+                    # puts other things on this stream (seen on a real PC:
+                    # "#< CLIXML" and a progress record), and none of that
+                    # is a fault.
+                    text = raw.decode("utf-8", "replace").strip()
+                    if text.startswith("E "):
+                        self._note(text)
+            except (OSError, ValueError):
+                pass
+        threading.Thread(target=read, name="EDSMT voice errors", daemon=True).start()
+
     def set_rate(self, rate):
         self.rate = clean_rate(rate)
+
+    def set_device(self, device):
+        """The audio device to play on: its id, or "" for the system's
+        default. The process that plays on it is started when the next line
+        is said."""
+        device = device if isinstance(device, str) else ""
+        if device != self.device:
+            self.device = device
+            self.starts = 0     # changing device is not a process that keeps dying
+
+    def say_file(self, path):
+        """Play a wave file, on the device chosen. False when nothing will be
+        played."""
+        path = speakable(path)
+        if not path or not self.available:
+            return False
+        return self._send("W " + path)
 
     def pick_take(self, line_id, theme, detail):
         """Which take to say: 1, or with Chatty one of the line's takes at
@@ -812,21 +1250,89 @@ class Speaker:
         will be said."""
         if not self.available:
             return False
+        if line_id in SPOKEN_ONLY:
+            return self.say_text(SPOKEN_ONLY[line_id])
         theme = clean_theme(theme)
         take = self.pick_take(line_id, theme, detail)
         found = recording(line_id, theme, self.folders, place=place, detail=detail, take=take)
-        if found and needs_comms(found, theme) and self.cache_dir:
-            return self._send(("FX", found, clean_place(place)))
+        if take == 1:
+            # 1.10042: more than one take of the line on disk - never the
+            # one played last time, and the last few are remembered.
+            files = recording_takes(line_id, theme, self.folders, place=place, detail=detail)
+            if files:
+                recent = self._recent.setdefault(line_id, [])
+                found = pick_file(files, recent, self._random)
+                recent.append(found)
+                del recent[:-TAKES_REMEMBERED]
+        words = take_words(found, theme) or line_text(line_id, theme, detail, take)
+        if found and needs_comms(found, theme, self.comms) and self.cache_dir:
+            return self._sent(("FX", found, clean_place(place)), words)
         if found:
-            return self._send("W " + found)
+            return self._sent("W " + found, words)
         return self.say_text(line_text(line_id, theme, detail, take))
+
+    def say_direction(self, lead, metres, bearing, theme=DEFAULT_THEME, place=None,
+                      detail=DEFAULT_DETAIL, text=None):
+        """A distance and a compass direction, with `lead` (the id of a line
+        of the pack, or "") first: put together from the voice's building
+        blocks when every one of them has a recording - one joined recording,
+        a breath between its parts, no clipped join - else the whole line in the Windows voice,
+        as `text` or the same words. Never half and half. False when nothing
+        will be said."""
+        if not self.available:
+            return False
+        theme, lead = clean_theme(theme), str(lead or "")
+        plain = direction_text(line_text(lead, theme, detail) if lead else "", metres, bearing)
+        words = text or plain
+        blocks = VB.direction_blocks(lead, metres, bearing)
+        paths = []
+        for ident in blocks or ():
+            files = recording_takes(ident, theme, self.folders,
+                                    place=place if ident == lead else None, detail=detail)
+            if not files:
+                paths = []
+                break
+            recent = self._recent.setdefault(ident, [])
+            chosen = pick_file(files, recent, self._random)
+            recent.append(chosen)
+            del recent[:-TAKES_REMEMBERED]
+            paths.append(chosen)
+        if blocks and len(paths) == len(blocks):
+            clean = not any(os.path.basename(os.path.dirname(p)) in PLACES for p in paths)
+            return self._sent(("JOIN", paths, clean_place(place),
+                               bool(clean and self.comms and theme in COMMS_THEMES), words), plain)
+        return self.say_text(words) if words else False
+
+    def _join(self, line):
+        """The line for a joined recording, made here, off the window's
+        thread: the blocks joined into one file in the cache (given the
+        place's comm sound for a voice with comms), or - when they will not
+        join - every word of it in the Windows voice. None for nothing."""
+        _what, paths, place, comms, words = line
+        folder = self.cache_dir or os.path.join(tempfile.gettempdir(), "edsmt-voice")
+        out = VB.joined_path(paths, folder, VB.JOIN_GAP_MS)
+        try:
+            if not os.path.isfile(out) and not VB.join_wavs(paths, out, VB.JOIN_GAP_MS):
+                return ("S " + words) if words else None
+        except (OSError, ValueError, MemoryError):
+            return ("S " + words) if words else None
+        if comms and self.cache_dir:
+            out = CFX.cached(out, place, self.cache_dir) or out
+        return "W " + out
 
     def say_text(self, text):
         """Any words, spoken. False when nothing will be said."""
         words = speakable(text)
         if not words or not self.available:
             return False
-        return self._send("S " + words)
+        return self._sent("S " + words, words)
+
+    def _sent(self, line, words):
+        """Send a line and, when it was taken, remember what was said."""
+        taken = self._send(line)
+        if taken and words:
+            self._said.append((time.time(), str(words)))
+        return taken
 
     def _send(self, line):
         try:
@@ -846,6 +1352,10 @@ class Speaker:
             if item is None or self.closed:
                 return
             rate, line = item
+            if isinstance(line, tuple) and line and line[0] == "JOIN":
+                line = self._join(line)
+                if line is None:
+                    continue
             if isinstance(line, tuple) and line and line[0] == "FX":
                 # The comm sound is worked out here, off the window's thread;
                 # the plain recording if it cannot be.
@@ -855,6 +1365,9 @@ class Speaker:
                 if proc is None:
                     continue
                 try:
+                    if self._pointed and self.device != self._sent_device:
+                        self._write(proc, "D %s" % self.device)
+                        self._sent_device = self.device
                     if rate != self._sent_rate:
                         self._write(proc, "R %d" % rate)
                         self._sent_rate = rate
@@ -873,25 +1386,37 @@ class Speaker:
     def _process(self):
         """The running process, started if there is none. Under the lock."""
         proc = self.proc
-        if proc is not None and proc.poll() is None:
+        pointed = bool(self.device and self.spawn_device)
+        if proc is not None and proc.poll() is None and pointed == self._pointed:
             return proc
         if proc is not None:
+            # Dead, or the wrong kind for the device now chosen.
             self._end(proc)
-        if self.closed or self.starts >= MAX_STARTS:
+        if self.closed:
+            return None
+        if self.starts >= MAX_STARTS:
+            if not self._gave_up:       # said once, not at every line after
+                self._gave_up = True
+                self._note("The speech process stopped %d times and is not being "
+                           "started again until EDSMT is restarted." % MAX_STARTS)
             return None
         self.starts += 1
         try:
-            self.proc = self.spawn()
-        except Exception:
+            self._pointed = pointed
+            self.proc = (self.spawn_device if pointed else self.spawn)()
+        except Exception as exc:
             # No PowerShell, or it would not start: nothing is said, and
-            # nothing in the window is the worse for it.
+            # nothing in the window is the worse for it - but it is known.
             self.proc = None
+            self._note("E ! %s" % exc)
             return None
+        self._listen(self.proc)
         if self.closed:
             # Closed while it was starting: it goes at once.
             self._end(self.proc)
             return None
         self._sent_rate = None
+        self._sent_device = None
         if not self._atexit:
             atexit.register(self.close)
             self._atexit = True

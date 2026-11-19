@@ -447,7 +447,7 @@ mm.store.add_deposit(system="S", body="B", location="1", commodity="Haematite",
                      amount="High", mined="Haematite:40;Water:3", lat="1", lon="1")
 mm.selected = mm.store.deposits[0]
 _edits = []
-mm.deposit_edited = lambda deposit_id, changes: _edits.append(changes)
+mm.deposit_edited = lambda deposit_id, changes, tonnes=None: _edits.append(changes)   # 1.10042: tonnes ride along
 mm.mark_mined()
 check("MINED OUT files the cycle and starts the count again",
       _edits and _edits[0]["amount"] == "Depleted" and _edits[0]["mined"] == ""

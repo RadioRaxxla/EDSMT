@@ -616,6 +616,35 @@ PLAN_KEEP = 300             # plans kept; the oldest go first
 PLAN_SAME_M = 60.0          # a trace this close to a kept plan's middle replaces it
 
 
+def following_pin(waiting, skipped=()):
+    """The pin to drive to next (1.10042): the first of `waiting` - the
+    pins of yours with no rig on them yet, in plan order - that has not been
+    skipped. None when none is waiting."""
+    left_out = set(skipped or ())
+    waiting = list(waiting or [])
+    for pin in waiting:
+        if pin.get("n") not in left_out:
+            return pin
+    return waiting[0] if waiting else None
+
+
+def skip_pin(skipped, waiting):
+    """"Skip this pin": the pin being driven to is left out and the next
+    one waiting is the one to go to. Skipping the last one left starts
+    round again, so there is always a pin to drive to. Returns (the pins
+    now left out, the number of the one just skipped or None)."""
+    skipped = [n for n in (skipped or [])]
+    current = following_pin(waiting, skipped)
+    if current is None:
+        return skipped, None
+    n = current.get("n")
+    numbers = [pin.get("n") for pin in waiting]
+    skipped = [s for s in skipped if s in numbers and s != n] + [n]
+    if all(number in skipped for number in numbers):
+        skipped = []
+    return skipped, n
+
+
 def plan_centre(record):
     """The middle of a kept plan as (lat, lon): its pins, else its edge."""
     points = [(p["lat"], p["lon"]) for p in record.get("pins") or []] or \

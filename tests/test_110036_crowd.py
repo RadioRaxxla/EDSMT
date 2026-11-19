@@ -249,9 +249,11 @@ if HAVE_DISPLAY:
 def _follow():
     fake = app.community = FakeCommunity()
     app.crowd = None
-    check("asks for both at once", app.follow_crowd(NOW) and sorted(fake.asked) ==
-          [("regrowth", CR.REGROWTH_TAG), ("rig-spacing", CR.SPACING_TAG)], fake.asked)
-    check("not again an hour later", not app.follow_crowd(NOW + 3600) and len(fake.asked) == 2)
+    # 1.10042: the tonnes deposits held are asked for in the same breath.
+    check("asks for all three at once", app.follow_crowd(NOW) and sorted(fake.asked) ==
+          [("regrowth", CR.REGROWTH_TAG), ("rig-spacing", CR.SPACING_TAG),
+           ("tonnes", CR.TONNES_TAG)], fake.asked)
+    check("not again an hour later", not app.follow_crowd(NOW + 3600) and len(fake.asked) == 3)
     app.take_board  # noqa - the router is shared with the leaderboard
     app.take_crowd(CR.REGROWTH_TAG, True, json.dumps({"all": MEASURED, "by_commodity": []}))
     app.take_crowd(CR.SPACING_TAG, True, json.dumps({"layouts": 6, "commanders": 3, "closest_m": 61.5,

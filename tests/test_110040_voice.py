@@ -227,32 +227,45 @@ FIXED = ["online", "voice_test", "update_ready", "backup_done", "signal_logged",
          "session_resumed", "session_end", "nearest", "arrived", "none_in_range",
          "touchdown_hint", "locations_on_body", "bodies_ranked", "high_gravity",
          "deploy_clear", "wing_linked", "wing_mate_joined", "wing_mate_left", "wing_clash",
-         "chat_ok", "chat_unknown"]
-RIGS = ["rig_%s_%d" % (kind, n) for kind in ("down", "up") for n in range(1, 7)]
+         "chat_ok", "chat_unknown",
+         # 1.2: the 17 lines approved 19 Nov 2026
+         "value_top", "value_best", "rich_patch", "sell_here", "hold_full", "nearly_out",
+         "plenty_left", "due_check", "guide_far", "landed_marked", "pin_skipped", "import_done",
+         "ribbon_earned", "live_on", "live_off", "rhino_full_soon", "ship_full_soon"]
+RIGS =["rig_%s_%d" % (kind, n) for kind in ("down", "up") for n in range(1, 7)]
 
 
 @section("the line table: every line in all three voices")
 def _lines():
     check("it is the Basic voice line pack", VO.PACK_NAME == "Basic voice line pack")
-    check("four voices: Celestia, Ship computer, Flight controller, Radio Raxxla on-air",
+    check("five voices: Celestia, Ship computer, Flight controller, Radio Raxxla on-air, Windows voice",
           [name for _k, name in VO.THEMES] == ["Celestia", "Ship computer", "Flight controller",
-                                                "Radio Raxxla on-air"], VO.THEMES)
+                                                "Radio Raxxla on-air", "Windows voice"], VO.THEMES)
+    check("the Windows voice is Windows' own speech: the Ship computer's plain words, and no recording ever",
+          all(words["windows"] == words["ship_computer"] for words in VO.LINES.values())
+          and VO.recording("signal_logged", "windows", [os.path.dirname(HERE)]) == ""
+          and not os.path.isdir(os.path.join(os.path.dirname(HERE), "voice", "windows"))
+          and "windows" not in VO.COMMS_THEMES)
+    check("the Flight controller speaks over the comms like Celestia; the others are clean",
+          VO.COMMS_THEMES == ("celestia", "flight_controller"), VO.COMMS_THEMES)
     check("every approved line is there, and nothing else",
           sorted(VO.LINES) == sorted(FIXED + RIGS), sorted(set(VO.LINES) ^ set(FIXED + RIGS)))
     short = [(line_id, theme) for line_id, words in VO.LINES.items()
              for theme in VO.THEME_KEYS if not str(words.get(theme) or "").strip()]
-    check("every line has all four voices", not short and all(
+    check("every line has all five voices", not short and all(
         set(words) == set(VO.THEME_KEYS) for words in VO.LINES.values()), short[:6])
     check("the words as approved, in each voice",
           [VO.line_text("signal_logged", t) for t in VO.THEME_KEYS]
           == ["Signal logged. That's our centre, Commander. Don't wander off.",
               "Signal logged. Survey centre set.", "Signal marked. Centre locked.",
-              "Signal's in the book. That's our centre."])
+              "Signal's in the book. That's our centre.", "Signal logged. Survey centre set."])
     check("rig three, down and up",
           [VO.line_text("rig_down_3", t) for t in VO.THEME_KEYS]
-          == ["Rig three, down.", "Rig three deployed.", "Rig three down.", "Rig three's down."]
+          == ["Rig three, down.", "Rig three deployed.", "Rig three down.", "Rig three's down.",
+              "Rig three deployed."]
           and [VO.line_text("rig_up_3", t) for t in VO.THEME_KEYS]
-          == ["Rig three, back aboard.", "Rig three recovered.", "Rig three up.", "Rig three picked up."])
+          == ["Rig three, back aboard.", "Rig three recovered.", "Rig three up.", "Rig three picked up.",
+              "Rig three recovered."])
     check("the test line, for the button", VO.line_text("voice_test", "flight_controller")
           == "Radio check. Loud and clear.")
     check("a theme by its name reads the same as by its key",
@@ -291,9 +304,9 @@ def _words():
     check("all twelve hours", sorted(set(VO.clock_words(h * 30) for h in range(12)))
           == sorted(VO.CLOCK))
     words = [VO.distance_words(m) for m in (1, 7.4, 44, 344, 995, 1000, 1240, 2000, 12345)]
-    check("metres to the nearest ten, then kilometres",
+    check("metres to the nearest ten, then kilometres, whole ones from ten",
           words == ["1 metre", "7 metres", "40 metres", "340 metres", "1 kilometre",
-                    "1 kilometre", "1.2 kilometres", "2 kilometres", "12.3 kilometres"], words)
+                    "1 kilometre", "1.2 kilometres", "2 kilometres", "12 kilometres"], words)
     check("no name: an unknown deposit", VO.direction_words("", 50, 0)
           == "Unknown deposit, 50 metres, dead ahead")
     check("a rig and a waypoint read the same way",
@@ -535,28 +548,31 @@ def _wav():
     finally:
         del _sys._MEIPASS
 
-    print("== the Basic voice line pack, Ship computer (recorded 5 Nov 2026) ==")
-    pack = os.path.join(os.path.dirname(HERE), "voice", "ship_computer")
-    ids = sorted(VO.LINES)
-    have = sorted(n[:-4] for n in os.listdir(pack) if n.endswith(".wav")) if os.path.isdir(pack) else []
-    check("every line has a recording, and nothing else is there", have == ids,
-          (sorted(set(ids) - set(have)), sorted(set(have) - set(ids))))
-    bad = []
-    for name in have:
-        raw = open(os.path.join(pack, name + ".wav"), "rb").read(44)
-        channels = int.from_bytes(raw[22:24], "little")
-        rate = int.from_bytes(raw[24:28], "little")
-        bits = int.from_bytes(raw[34:36], "little")
-        if not (raw[:4] == b"RIFF" and raw[8:12] == b"WAVE" and raw[20:22] == b"\x01\x00"
-                and channels == 1 and rate == 22050 and bits == 16):
-            bad.append(name)
-    check("each is plain PCM, mono, 22 kHz, 16-bit - what the Windows player plays", not bad, bad[:5])
-    check("the pack is found for every line through the app's own folders",
-          all(VO.recording(i, "ship_computer", [os.path.dirname(HERE)]) for i in ids))
-    for spec_name in ("EDSMT.spec", "EDSMT-onefile.spec"):
-        spec = open(os.path.join(os.path.dirname(HERE), "build", spec_name), encoding="utf-8").read()
-        check("%s bundles voice/ship_computer" % spec_name,
-              "voice" in spec and "ship_computer" in spec and ".wav" in spec)
+    for _theme, _when in (("ship_computer", "5 Nov"), ("flight_controller", "10 Nov"), ("on_air", "10 Nov")):
+      # 1.10042: Flight controller and Radio Raxxla on-air ship their Basic
+      # lines too - Basic is free; the full packs are for supporters.
+      print("== the Basic voice line pack, %s (recorded %s 2026) ==" % (_theme, _when))
+      pack = os.path.join(os.path.dirname(HERE), "voice", _theme)
+      ids = sorted(VO.LINES)
+      have = sorted(n[:-4] for n in os.listdir(pack) if n.endswith(".wav")) if os.path.isdir(pack) else []
+      check("%s: every line has a recording, and nothing else is there" % _theme, have == ids,
+            (sorted(set(ids) - set(have)), sorted(set(have) - set(ids))))
+      bad = []
+      for name in have:
+          raw = open(os.path.join(pack, name + ".wav"), "rb").read(44)
+          channels = int.from_bytes(raw[22:24], "little")
+          rate = int.from_bytes(raw[24:28], "little")
+          bits = int.from_bytes(raw[34:36], "little")
+          if not (raw[:4] == b"RIFF" and raw[8:12] == b"WAVE" and raw[20:22] == b"\x01\x00"
+                  and channels == 1 and rate == 22050 and bits == 16):
+              bad.append(name)
+      check("%s: each is plain PCM, mono, 22 kHz, 16-bit" % _theme, not bad, bad[:5])
+      check("%s: found for every line through the app's own folders" % _theme,
+            all(VO.recording(i, _theme, [os.path.dirname(HERE)]) for i in ids))
+      for spec_name in ("EDSMT.spec", "EDSMT-onefile.spec"):
+          spec = open(os.path.join(os.path.dirname(HERE), "build", spec_name), encoding="utf-8").read()
+          check("%s bundles voice/%s" % (spec_name, _theme),
+                'os.path.join(ROOT, "voice", "**", "*.wav")' in spec and "recursive=True" in spec)
 
 
 # ---------------------------------------------------------------------------
@@ -687,6 +703,15 @@ class FakeSpeaker:
         self.texts.append(text)
         return True
 
+    # 1.10042 (G4): a deposit with a compass bearing goes through
+    # say_direction, with the same words as `text` for the Windows voice;
+    # here it is the words that are noted, as before.
+    def say_direction(self, lead, metres, bearing, theme=None, place=None, detail=None, text=None):
+        return self.say_text(text)
+
+    def set_device(self, device):
+        pass
+
     def close(self):
         self.closed = True
 
@@ -758,14 +783,19 @@ def _events():
     chat = source("inputmix.py")
     check("a chat command not understood, and one taken", 'speak(app, "chat_unknown")' in chat
           and 'speak(app, "chat_ok")' in chat)
-    check("EDSMT online, at start, with the mode on", 'self.speak("online")' in method("EDSMT", "__init__"))
+    # 1.10042: the start's own windows, and the greeting with them, are in
+    # first_run_windows, which __init__ reaches (after the voice question).
+    check("EDSMT online, at start, with the mode on",
+          'self.speak("online")' in method("EDSMT", "first_run_windows")
+          and "first_run_windows" in method("EDSMT", "__init__"))
     check("every tick follows the voice", "self.follow_voice()" in method("EDSMT", "tick"))
     named = set()
     for name in ("edsmt.py", "guidance.py", "inputmix.py"):
         named |= set(re.findall(r'speak\((?:app, )?"([a-z_0-9]+)"', source(name)))
     named |= set(re.findall(r'self\.speak\("([a-z_0-9]+)" if', SRC))
-    check("every line the app names is in the pack", named and named <= set(VO.LINES),
-          sorted(named - set(VO.LINES)))
+    # 1.10042: or is one of the lines Windows' voice says with no recording.
+    check("every line the app names is in the pack", named and named <= set(VO.LINES) | set(VO.SPOKEN_ONLY),
+          sorted(named - set(VO.LINES) - set(VO.SPOKEN_ONLY)))
     check("the rig warning is said only when its own spoken sound is off",
           method("EDSMT", "watch_rigs").count('self.speak("rig_limit_warning")') == 2
           and "else:" in method("EDSMT", "watch_rigs"))
@@ -1097,7 +1127,8 @@ if HAVE_DISPLAY:
               and APP.voice.proc is None and APP.voice.starts == 0)
         check("a sonar, no thread", isinstance(APP.sonar, SN.Sonar) and not APP.sonar.running)
 
-    @section("Settings > Basics > Voice: the switches, the voice, the rate and Test voice")
+    # 1.10042 (G1, #361): the voice settings moved from Basics to the Audio tab.
+    @section("Settings > Audio: the switches, the voice, the rate and Test voice")
     def _settings():
         win = A.SettingsWindow(APP)
         pump(4)
@@ -1105,24 +1136,25 @@ if HAVE_DISPLAY:
             for key, label in (("voice_mode", "Voice Mode"), ("voice_directions", "Spoken directions"),
                                ("sonar", "Proximity sonar")):
                 var = win.toggles.get(key)
-                switch = next((w for w in walk(win.pages["Basics"])
+                switch = next((w for w in walk(win.pages["Audio"])
                                if isinstance(w, A.ctk.CTkSwitch) and w.cget("text") == label), None)
-                check("%s: a switch on Basics, off to begin with, with its note" % label,
+                check("%s: a switch on Audio, off to begin with, with its note" % label,
                       var is not None and var.get() is False and switch is not None
                       and getattr(switch, "_edsmt_tip", ""), (var, switch))
             box, options = win.choices["voice_theme"]
-            check("the voice: the four of the pack, Celestia first and picked",
+            check("the voice: the five of the pack, Celestia first and picked, Windows voice last",
                   [n for n, _v in options]
-                  == ["Celestia", "Ship computer", "Flight controller", "Radio Raxxla on-air"]
+                  == ["Celestia", "Ship computer", "Flight controller", "Radio Raxxla on-air",
+                      "Windows voice"]
                   and box.get() == "Celestia", (options, box.get()))
             rate, rates = win.choices["voice_rate"]
             check("the rate, Normal to begin with", rate.get() == "Normal" and len(rates) == 5)
             entry = win.fields["voice_directions_s"]
             check("the directions every 10 s to begin with", entry.get() == "10", entry.get())
-            words = " ".join(str(w.cget("text")) for w in walk(win.pages["Basics"])
+            words = " ".join(str(w.cget("text")) for w in walk(win.pages["Audio"])
                              if isinstance(w, A.ctk.CTkLabel))
             check("the section names the Basic voice line pack", "Basic voice line pack" in words)
-            test = button(win.pages["Basics"], "Test voice")
+            test = button(win.pages["Audio"], "Test voice")
             check("Test voice, with its note", test is not None and getattr(test, "_edsmt_tip", ""))
             real = APP.voice
             APP.voice = FakeSpeaker()
@@ -1133,6 +1165,14 @@ if HAVE_DISPLAY:
                 check("it says the test line in the voice and rate in the boxes, saved or not",
                       APP.voice.lines == [("voice_test", "flight_controller")]
                       and APP.voice.rates[-1] == "2", (APP.voice.lines, APP.voice.rates))
+                # 1.10042: it says how it went once the speech has had time
+                # to fail, so the result is waited for, not read at once.
+                check("it says at once that the test has begun", "Testing the voice" in
+                      str(win.status.cget("text")), win.status.cget("text"))
+                until = time.monotonic() + VO.TEST_WAIT_S + 4.0
+                while time.monotonic() < until and "Radio check" not in str(win.status.cget("text")):
+                    APP.update()
+                    time.sleep(0.05)
                 check("and says what it said", "Radio check. Loud and clear." in
                       str(win.status.cget("text")), win.status.cget("text"))
             finally:
@@ -1162,7 +1202,7 @@ if HAVE_DISPLAY:
                   [n for n, _v in details] == ["Short", "Normal", "Chatty"] and detail.get() == "Normal",
                   (details, detail.get()))
             hints = win.toggles.get("voice_pack_hints")
-            switch = next((w for w in walk(win.pages["Basics"])
+            switch = next((w for w in walk(win.pages["Audio"])
                            if isinstance(w, A.ctk.CTkSwitch) and w.cget("text") == "Voice-pack reminders"), None)
             note = getattr(switch, "_edsmt_tip", "") or ""
             check("voice-pack reminders: a switch with its note, naming no pack",
@@ -1218,8 +1258,9 @@ if HAVE_DISPLAY:
         APP.voice = VO.Speaker(spawn=spawn)
         APP.settings["voice_mode"] = True
         APP.speak("online")
+        # Spoken or played: since 1.10042 the Flight controller has recordings.
         check("the app's line reaches the process",
-              wait_for(lambda: any(l.startswith("S ") for l in spawn.lines()), 10.0), spawn.lines())
+              wait_for(lambda: any(l[:2] in ("S ", "W ") for l in spawn.lines()), 10.0), spawn.lines())
         proc = spawn.started[0] if spawn.started else None
         sonar = APP.sonar
         APP.on_close()

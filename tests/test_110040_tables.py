@@ -292,11 +292,21 @@ table.pack_forget()
 grid.pack(fill="both", expand=True)
 pump(0.2)
 started = time.perf_counter()
+# The label grid is drawn here as the app drew it until 1.10042, when the
+# last tables that used one (Powerplay and the Leaderboard) went to the
+# tree view too and its helpers were taken out of the app.
 for index, row in enumerate(ROWS[:300], start=1):
     for column, cell in enumerate(cells(row)):
         text, colour, _key = A.EarningsWindow._cell(cell)
-        A.cell_label(grid.inner, index, column, text, colour, full=A.cell_full(cell))
-    A.row_buttons(grid.inner, index, [("system", lambda: None, False), ("delete", lambda: None, A.BTN_DANGER)])
+        label = A.tk.Label(grid.inner, text=text, font=A.F_SMALL, fg=colour or A.TEXT, bg=A.PANEL,
+                           justify="left", anchor="w", wraplength=A.CELL_WRAP, bd=0)
+        label.grid(row=index, column=1 + column, padx=8, pady=1, sticky="w")
+        if A.cell_full(cell) != text:
+            A.tip(label, A.cell_full(cell), always=True)
+    box = A.tk.Frame(grid.inner, bg=A.PANEL, bd=0)
+    box.grid(row=index, column=0, padx=6, pady=1, sticky="w")
+    for word, primary in (("system", False), ("delete", A.BTN_DANGER)):
+        A.mini_button(box, word, lambda: None, primary).pack(side="left", padx=2)
 app.update_idletasks()
 app.update()
 grid_took = time.perf_counter() - started
