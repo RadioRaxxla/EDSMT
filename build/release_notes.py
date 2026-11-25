@@ -38,10 +38,11 @@ NOTES_URL = "https://github.com/" + REPO_NAME + "/blob/v%s/CHANGELOG.md"
 BRIEF_MOST = 8          # headings listed before "and N more"
 BRIEF_CHARS = 1500      # the whole of the short notes, at most
 
-SHORT_FOOTER = """**EDSMT-Setup.exe** installs it. **EDSMT.exe** is the same program as one \
-portable file. **EDSMT-linux-x86_64.tar.gz** is the Linux build. Windows \
-SmartScreen warns on first run because the build is not code signed: More \
-info, then Run anyway.
+SHORT_FOOTER = """**EDSMT-Setup.exe** is the installer, **EDSMT.exe** the portable \
+program, **EDSMT-linux-x86_64.tar.gz** the Linux build.
+
+The build is not code signed, so Windows SmartScreen may warn the first \
+time: choose More info, then Run anyway.
 """
 
 
@@ -58,6 +59,15 @@ def _cut(text, most):
     return head[:head.rfind(" ")].rstrip(",;:") + "..."
 
 
+def _unwrap(text):
+    """`text` with each paragraph on one line. The CHANGELOG is wrapped at 80
+    columns; a Discord card or a release page shows those breaks as they are,
+    and then wraps again at its own width (the 1.2 card)."""
+    paragraphs = re.split(r"\n\s*\n", text.strip())
+    return "\n\n".join(" ".join(line.strip() for line in para.splitlines())
+                       for para in paragraphs if para.strip())
+
+
 def brief(body, version):
     """The short notes for a release: what `body` (a CHANGELOG entry) says
     before its first heading, or its headings when it says nothing there,
@@ -68,11 +78,11 @@ def brief(body, version):
             headings.append(line[4:].strip())
         elif not headings:
             lead.append(line)
-    tail = "\n\nFull patch notes: " + (NOTES_URL % version) + "\n\n" + SHORT_FOOTER
+    tail = "\n\n[Full patch notes](" + (NOTES_URL % version) + ")\n\n" + SHORT_FOOTER
     room = BRIEF_CHARS - len(tail)
     said = "\n".join(lead).strip()
     if said and not said.lstrip().startswith(("- ", "* ")):
-        top = _cut(said, room)
+        top = _cut(_unwrap(said), room)
     elif headings:
         shown = headings[:BRIEF_MOST]
         top = "\n".join("- " + h for h in shown)

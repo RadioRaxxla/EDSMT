@@ -65,6 +65,17 @@ def start(command, popen=None, environ=None, unpacked=None, windows=None):
                env=fresh_environment(environ, unpacked))
 
 
+# 1.201: what Windows answers when it will not let a program start because
+# of the file itself - Smart App Control and other application control
+# (4551), a software restriction policy (1260), a virus scan (225).
+BLOCKED_ERRORS = (4551, 1260, 225)
+
+
+def blocked(exc):
+    """True when starting a program failed because Windows blocked the file."""
+    return getattr(exc, "winerror", None) in BLOCKED_ERRORS
+
+
 # The program file an update replaced, kept beside the new one (1.10042) so
 # Help > "Go back to the previous version" has something to go back to. One
 # copy only: the next update replaces it. Portable build only - the installed

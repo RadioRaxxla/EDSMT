@@ -4,14 +4,62 @@ The version is in the app's title bar. Quote it on a bug report.
 
 ---
 
+## 1.201
+
+Fixes from testers' reports, clearer names for the two depleted buttons, and
+supporter voices. The voice you pick is now the only one you hear. Thanks to
+2020HeinSite, whose notes are behind most of it.
+
+### Fixed
+
+- **Show on the Visited, not updated list did nothing.** It changed the details
+  panel behind the list. It now opens the deposit in My sites, with its card
+  and map, on any body, and picks it on the main map when it is on the body you
+  are on.
+- **A depleted deposit said nothing about it.** On the map it showed as a
+  hollow ring. Its label now reads DEPLETED and the day it was first marked
+  (`Periclase dunite  5.53 km  3R  DEPLETED 21 Nov`), and it is always named;
+  the deposit list says "depleted 21 Nov" in the amount's place. It stays that
+  way until somebody says it is back.
+- **INSTALL UPDATE when Windows will not start the new installer.** Smart App
+  Control can hold back an installer it has not seen yet. EDSMT now says so
+  plainly and opens the download page.
+- **The release notes on GitHub and in Discord** read as sentences, not lines
+  broken at eighty characters.
+
+### Changed
+
+- **MINED OUT is now DEPOSIT DEPLETED, and Worked out is Location depleted.**
+  One is for a single deposit, the other for the whole signal; the buttons,
+  the overlay's question (Still there? UPDATE or DEPOSIT DEPLETED), the
+  Visited list and My sites' card all use the new names.
+- **The Visited, not updated list** says in plain words what each button does.
+- **Supporter voices.** Every voice speaks every Basic line for everyone.
+  From this version the rest of Celestia - Short and Chatty answers, later
+  takes, reactions and asides, the voice-pack reminders and distances in her
+  own voice - comes with supporter voices: supporters, and Radio Raxxla
+  staff, have it fetched by EDSMT once the computer is paired, in one
+  download, so the whole voice arrives together. Without it, Short and Chatty
+  answer as Normal does. Settings says whether supporter voices are on.
+- **The voice you pick is the only one you hear.** A voice says only what it
+  has recorded. A line, a distance or a question it has no recording of is
+  not said; before, the Windows voice read it out in its place. The spoken
+  Still there? question and the clock-face spoken directions are the Windows
+  voice's own, so they are heard with Windows voice picked.
+
+---
+
 ## 1.2
 
-My sites becomes one data window for everything you have recorded, the map and
-the scope explain themselves, every deposit says how many tonnes are left, and
-importing from another mining tool is finished. Celestia has seventy new takes
-so she repeats herself less, EDSMT asks before it speaks, and it backs your
-data up at every start. Thanks to testers 2020HeinSite and SnazzyNinja, whose
-reports are behind many of these.
+My sites is one data window for everything you have recorded, and every
+deposit says how many tonnes are left. Still there? and Due a check now cover
+everyone's finds, each rig shows its tonnes out of 12, and STATUS says how long
+the Rhino and the ship take to fill. All four recorded voices are free, with
+seventeen new lines each, and Windows voice is a fifth. Importing from another
+mining tool is finished, and EDSMT backs your data up at every start.
+
+Thanks to testers 2020HeinSite and SnazzyNinja, whose reports are behind many
+of these.
 
 ### New — one data window, a key to the map, tonnes left
 

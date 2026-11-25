@@ -468,11 +468,13 @@ LORE_IDS = tuple(k for k in EXTRA if k.startswith("lore_"))
 
 
 # Lines said in Windows' own voice only (1.10042): no recording in any pack,
-# so they are not part of the Basic voice line pack above.
+# so they are not part of the Basic voice line pack above. From 1.201 they
+# are heard only with the Windows voice picked: a recorded voice says only
+# what it has recorded, and no other voice reads a line in its place.
 SPOKEN_ONLY = {
     # 1.10042: asked once on driving onto a deposit you have marked. (The
     # touchdown waypoint line is recorded from 1.2: landed_marked.)
-    "still_there": "Still there? Update, or mined out."}
+    "still_there": "Still there? Update, or deposit depleted."}
 
 
 def _plain(text):
@@ -529,6 +531,15 @@ def clean_theme(theme):
         if text in (key, name):
             return key
     return DEFAULT_THEME
+
+
+def reads_words(theme):
+    """Whether a voice reads words out: the Windows voice, and no other.
+
+    1.201: the voice picked is the only voice heard. A recorded voice says
+    what it has a recording of and nothing else - a line, a distance or a
+    question it has none of is not said, never read by another voice."""
+    return clean_theme(theme) == WINDOWS_THEME
 
 
 def line_text(line_id, theme=DEFAULT_THEME, detail=DEFAULT_DETAIL, take=1):
@@ -607,9 +618,22 @@ def recording(line_id, theme, folders, place=None, detail=DEFAULT_DETAIL, take=1
         for folder in folders or ():
             if not folder:
                 continue
-            path = os.path.join(folder, "voice", theme, name)
-            if os.path.isfile(path):
+            path = _found(os.path.join(folder, "voice", theme, name))
+            if path:
                 return path
+    return ""
+
+
+# 1.201: a supporter's pack file is kept sealed beside its name (packs.py).
+SEALED = ".rrv"
+
+
+def _found(path):
+    """`path`, or the sealed file of it, whichever is there; "" for none."""
+    if os.path.isfile(path):
+        return path
+    if os.path.isfile(path + SEALED):
+        return path + SEALED
     return ""
 
 
@@ -617,7 +641,7 @@ def recording(line_id, theme, folders, place=None, detail=DEFAULT_DETAIL, take=1
 # takes of the same line. How many lately played takes are not played again
 # (at least one fewer than there are, so there is always one to play).
 TAKES_REMEMBERED = 2
-TAKE_FILE = re.compile(r"^(?P<stem>.+)_(?P<n>\d+)\.wav$", re.IGNORECASE)
+TAKE_FILE = re.compile(r"^(?P<stem>.+)_(?P<n>\d+)\.wav(?:\.rrv)?$", re.IGNORECASE)
 
 
 def _take_names(line_id, place, detail):
@@ -634,26 +658,30 @@ def recording_takes(line_id, theme, folders, place=None, detail=DEFAULT_DETAIL):
     places, in the same order, as recording()). [] when there is none."""
     theme, line_id = clean_theme(theme), str(line_id)
     for stem in _take_names(line_id, place, detail):
+        # 1.201: the takes of one line can lie in more than one folder - the
+        # first in the program, the later ones in a supporter's packs - so
+        # each take is looked for in every folder, the first folder winning.
+        takes = {}
         for folder in folders or ():
             if not folder:
                 continue
             path = os.path.join(folder, "voice", theme, stem + ".wav")
             where, base = os.path.split(path)
-            found = [path] if os.path.isfile(path) else []
+            if 1 not in takes and _found(path):
+                takes[1] = _found(path)
             try:
                 names = os.listdir(where)
             except OSError:
                 names = []
-            extra = []
             wanted = os.path.splitext(base)[0].lower()
             for name in names:
                 hit = TAKE_FILE.match(name)
                 if hit and hit.group("stem").lower() == wanted and int(hit.group("n")) >= 2 \
+                        and int(hit.group("n")) not in takes \
                         and os.path.isfile(os.path.join(where, name)):
-                    extra.append((int(hit.group("n")), os.path.join(where, name)))
-            found.extend(p for _n, p in sorted(extra))
-            if found:
-                return found
+                    takes[int(hit.group("n"))] = os.path.join(where, name)
+        if takes:
+            return [takes[n] for n in sorted(takes)]
     return []
 
 
@@ -749,7 +777,10 @@ TAKE_WORDS = {_theme: {_name: _plain(_words) for _name, _words in _takes.items()
 def take_words(path, theme):
     """The words of a later take's recording, from its file name. "" for a
     line's first recording, or a take whose words are not listed."""
-    stem = os.path.splitext(os.path.basename(str(path or "")))[0].lower()
+    name = os.path.basename(str(path or ""))
+    if name.lower().endswith(SEALED):
+        name = name[:-len(SEALED)]
+    stem = os.path.splitext(name)[0].lower()
     return TAKE_WORDS.get(clean_theme(theme), {}).get(stem, "")
 
 
@@ -1014,6 +1045,11 @@ SPEECH_SCRIPT = "\n".join((
     "      $voice.Speak($rest)",
     "    }",
     "    elseif ($what -eq 'W') { (New-Object System.Media.SoundPlayer $rest).PlaySync() }",
+    # 1.201: a recording handed over as its sound, played from memory.
+    "    elseif ($what -eq 'B') {",
+    "      $ms = New-Object System.IO.MemoryStream(,[Convert]::FromBase64String($rest))",
+    "      try { (New-Object System.Media.SoundPlayer $ms).PlaySync() } finally { $ms.Dispose() }",
+    "    }",
     "  } catch { [Console]::Error.WriteLine('E ' + $what + ' ' + (Why $_)) }",
     "}",
 ))
@@ -1031,6 +1067,8 @@ LINE_MAX = 300
 PROBLEMS_KEPT = 5
 PROBLEM_MAX = 220
 TEST_WAIT_S = 2.5
+# 1.201: a distance whose recordings would not join is not said at all.
+JOIN_FAULT = "E W a distance could not be put together from its recordings, so it was not said"
 
 
 def speakable(text):
@@ -1049,6 +1087,7 @@ def explain_problem(text):
     if not words:
         return ""
     lead = {"E W ": "A recording could not be played: ",
+            "E B ": "A recording could not be played: ",
             "E S ": "Windows could not speak the line: ",
             "E R ": "The speaking rate could not be set: ",
             "E D ": "The audio device could not be used, so the default is used: ",
@@ -1145,6 +1184,8 @@ class Speaker:
         self.folders = list(folders)
         # Where a line given its comm sound is kept (commfx).
         self.cache_dir = cache_dir
+        # 1.201: what opens a supporter's sealed recordings (packs.Vault).
+        self.vault = None
         # Whether Celestia's recordings are given the place's comm sound.
         self.comms = True
         self._random = random.Random()
@@ -1245,14 +1286,15 @@ class Speaker:
         return take
 
     def say_line(self, line_id, theme=DEFAULT_THEME, place=None, detail=DEFAULT_DETAIL):
-        """One line: its recording if there is one - given the place's comm
-        sound for a voice with comms - else its words. False when nothing
-        will be said."""
+        """One line, in the voice picked and no other (1.201): a recorded
+        voice plays its recording - given the place's comm sound for a voice
+        with comms - and says nothing when it has none; the Windows voice
+        reads the words. False when nothing will be said."""
         if not self.available:
             return False
-        if line_id in SPOKEN_ONLY:
-            return self.say_text(SPOKEN_ONLY[line_id])
         theme = clean_theme(theme)
+        if line_id in SPOKEN_ONLY:
+            return self.say_words(SPOKEN_ONLY[line_id], theme)
         take = self.pick_take(line_id, theme, detail)
         found = recording(line_id, theme, self.folders, place=place, detail=detail, take=take)
         if take == 1:
@@ -1264,21 +1306,26 @@ class Speaker:
                 found = pick_file(files, recent, self._random)
                 recent.append(found)
                 del recent[:-TAKES_REMEMBERED]
+        if take > 1 and found and take_words(found, theme) == "" and "chatty" not in found:
+            take = 1     # 1.201: the later take is not here; take 1 plays, with its words
         words = take_words(found, theme) or line_text(line_id, theme, detail, take)
         if found and needs_comms(found, theme, self.comms) and self.cache_dir:
             return self._sent(("FX", found, clean_place(place)), words)
         if found:
             return self._sent("W " + found, words)
-        return self.say_text(line_text(line_id, theme, detail, take))
+        # No recording of it in this voice: not said. Only the Windows
+        # voice reads words, and only when it is the voice picked.
+        return self.say_words(line_text(line_id, theme, detail, take), theme)
 
     def say_direction(self, lead, metres, bearing, theme=DEFAULT_THEME, place=None,
                       detail=DEFAULT_DETAIL, text=None):
         """A distance and a compass direction, with `lead` (the id of a line
         of the pack, or "") first: put together from the voice's building
         blocks when every one of them has a recording - one joined recording,
-        a breath between its parts, no clipped join - else the whole line in the Windows voice,
-        as `text` or the same words. Never half and half. False when nothing
-        will be said."""
+        a breath between its parts, no clipped join. Never half and half, and
+        never read by another voice (1.201): without every block a recorded
+        voice says nothing, and the Windows voice, picked, reads `text` or the
+        same words. False when nothing will be said."""
         if not self.available:
             return False
         theme, lead = clean_theme(theme), str(lead or "")
@@ -1301,27 +1348,43 @@ class Speaker:
             clean = not any(os.path.basename(os.path.dirname(p)) in PLACES for p in paths)
             return self._sent(("JOIN", paths, clean_place(place),
                                bool(clean and self.comms and theme in COMMS_THEMES), words), plain)
-        return self.say_text(words) if words else False
+        return self.say_words(words, theme)
 
     def _join(self, line):
         """The line for a joined recording, made here, off the window's
         thread: the blocks joined into one file in the cache (given the
-        place's comm sound for a voice with comms), or - when they will not
-        join - every word of it in the Windows voice. None for nothing."""
-        _what, paths, place, comms, words = line
+        place's comm sound for a voice with comms). None - nothing is said,
+        and the fault is kept - when they will not join (1.201: no other
+        voice reads it in their place)."""
+        _what, paths, place, comms, _words = line
         folder = self.cache_dir or os.path.join(tempfile.gettempdir(), "edsmt-voice")
         out = VB.joined_path(paths, folder, VB.JOIN_GAP_MS)
+        vault = self.vault if any(str(p).endswith(SEALED) for p in paths) else None
+        if vault is not None:
+            out += SEALED     # 1.201: a join of sealed recordings is kept sealed
         try:
-            if not os.path.isfile(out) and not VB.join_wavs(paths, out, VB.JOIN_GAP_MS):
-                return ("S " + words) if words else None
+            if not os.path.isfile(out) and not VB.join_wavs(paths, out, VB.JOIN_GAP_MS, vault=vault):
+                self._note(JOIN_FAULT)
+                return None
         except (OSError, ValueError, MemoryError):
-            return ("S " + words) if words else None
+            self._note(JOIN_FAULT)
+            return None
         if comms and self.cache_dir:
-            out = CFX.cached(out, place, self.cache_dir) or out
+            out = CFX.cached(out, place, self.cache_dir, vault=vault) or out
         return "W " + out
 
+    def say_words(self, text, theme=DEFAULT_THEME):
+        """Words read out - by the Windows voice, and only when it is the
+        voice picked (1.201). A recorded voice is never filled in by
+        another: for it nothing is said, and False comes back."""
+        if not reads_words(theme):
+            return False
+        return self.say_text(text)
+
     def say_text(self, text):
-        """Any words, spoken. False when nothing will be said."""
+        """Any words, spoken by Windows' own speech, whatever voice is
+        picked: say_words is what the app calls. False when nothing will be
+        said."""
         words = speakable(text)
         if not words or not self.available:
             return False
@@ -1359,7 +1422,15 @@ class Speaker:
             if isinstance(line, tuple) and line and line[0] == "FX":
                 # The comm sound is worked out here, off the window's thread;
                 # the plain recording if it cannot be.
-                line = "W " + (CFX.cached(line[1], line[2], self.cache_dir) or line[1])
+                vault = self.vault if str(line[1]).endswith(SEALED) else None
+                line = "W " + (CFX.cached(line[1], line[2], self.cache_dir, vault=vault) or line[1])
+            if isinstance(line, str) and line.startswith("W ") and line.endswith(SEALED):
+                # 1.201: a sealed recording goes to the player as its sound,
+                # from memory - never written out as a plain file.
+                sound = self.vault.read(line[2:]) if self.vault is not None else None
+                if not sound:
+                    continue
+                line = "B " + base64.b64encode(sound).decode("ascii")
             with self._lock:
                 proc = self._process()
                 if proc is None:

@@ -429,16 +429,18 @@ def _speaker():
     speaker = VO.Speaker(spawn=spawn, rate=2)
     check("nothing started until something is said", not spawn.started and speaker.proc is None)
     took = time.monotonic()
-    for line_id in ("online", "signal_logged", "border_set", "deposit_marked", "rig_down_1"):
-        speaker.say_line(line_id, "flight_controller")
+    # 1.201: the voice that reads words is the Windows voice, and only it.
+    ids = ("online", "signal_logged", "border_set", "deposit_marked", "rig_down_1")
+    for line_id in ids:
+        speaker.say_line(line_id, "windows")
     took = time.monotonic() - took
     check("saying never waits for the process", took < 0.2, took)
     check("every line arrives", wait_for(lambda: len(spawn.lines()) >= 6, 10.0), spawn.lines())
     check("through one process", len(spawn.started) == 1, len(spawn.started))
     got = spawn.lines()
     check("the rate first, then each line, in order",
-          got[:6] == ["R 2", "S EDSMT online. Standing by.", "S Signal marked. Centre locked.",
-                      "S Border marked.", "S Deposit logged.", "S Rig one down."], got)
+          got[:6] == ["R 2"] + ["S " + VO.line_text(i, "windows") for i in ids]
+          and all(VO.line_text(i, "windows") for i in ids), got)
     speaker.set_rate("-4")
     speaker.say_text("Platinum, 340 metres, two o'clock")
     check("a new rate goes ahead of the next line, still the one process",
@@ -526,11 +528,11 @@ def _wav():
     spawn = Spawner("wav")
     speaker = VO.Speaker(spawn=spawn, folders=[beside, data])
     speaker.say_line("rigs_full", "Radio Raxxla on-air")
-    speaker.say_line("online", "on_air")
-    check("the recording is played, and a line without one is spoken",
-          wait_for(lambda: len(spawn.lines()) >= 3, 5.0)
-          and spawn.lines()[1:3] == ["W " + in_app, "S Radio Raxxla here. Let's go find "
-                                                    "something worth digging."], spawn.lines())
+    unsaid = speaker.say_line("online", "on_air")
+    speaker.say_line("online", "Windows voice")
+    check("the recording is played; a line without one is not said (1.201); the Windows voice reads its own",
+          unsaid is False and wait_for(lambda: len(spawn.lines()) >= 3, 5.0)
+          and spawn.lines()[1:] == ["W " + in_app, "S " + VO.line_text("online", "windows")], spawn.lines())
     speaker.close()
     check("the app looks in its bundle, beside itself, then in the data folder",
           A.voice_folders() == [A.shipped_file(), A.app_dir(), A.DATA_DIR]
@@ -703,11 +705,15 @@ class FakeSpeaker:
         self.texts.append(text)
         return True
 
+    # 1.201: words are read by the Windows voice, and only when it is picked.
+    def say_words(self, text, theme=None):
+        return self.say_text(text) if VO.reads_words(theme) else False
+
     # 1.10042 (G4): a deposit with a compass bearing goes through
     # say_direction, with the same words as `text` for the Windows voice;
     # here it is the words that are noted, as before.
     def say_direction(self, lead, metres, bearing, theme=None, place=None, detail=None, text=None):
-        return self.say_text(text)
+        return self.say_words(text, theme)
 
     def set_device(self, device):
         pass
@@ -865,7 +871,7 @@ def _app_sonar():
 
 @section("spoken directions in the app: the target, every N s while moving, and on a change")
 def _app_directions():
-    app = driving_app(voice_directions=True, voice_directions_s=10)
+    app = driving_app(voice_directions=True, voice_directions_s=10, voice_theme="windows")
     lat, lon = offset(300, 0)
     app.store.add_deposit(system="Ega", body="Ega 1", lat=lat, lon=lon, commodity="Platinum",
                           amount="High")

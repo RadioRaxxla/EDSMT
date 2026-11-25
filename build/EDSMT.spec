@@ -59,7 +59,7 @@ hiddenimports += ["survey", "planview", "journal", "edonline", "overlay",
 # Guided survey and the pointers (1.10035): the window imports both.
 hiddenimports += ["waypoints", "guidance"]
 # 1.10040: the welcome window, the logo, the chrome and the hub manifest.
-hiddenimports += ["voiceask", "voiceblocks", "nowstatus", "audiodev", "welcome", "logo", "hubmanifest", "tabstrip", "uichrome", "pairing", "sitecard", "shipview", "signing", "weekcard", "squadshare", "eddnsend", "signalcsv", "commfx", "voicecues", "installkey", "planring", "richpresence"]
+hiddenimports += ["voiceask", "voiceblocks", "nowstatus", "audiodev", "welcome", "logo", "hubmanifest", "tabstrip", "uichrome", "pairing", "sitecard", "shipview", "signing", "weekcard", "squadshare", "eddnsend", "signalcsv", "commfx", "voicecues", "installkey", "planring", "richpresence", "perks", "packs"]
 # Map pictures (1.10035) are drawn with Pillow. It is imported inside
 # functions, so name it: a build that left it out would still start, and
 # every picture button would then say the library is missing.

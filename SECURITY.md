@@ -125,7 +125,11 @@ a GitHub-hosted Windows runner with a public log.
   with; it tells the Discord app on your PC what you are doing and does not
   use the network itself.
 - **Pairing with your Radio Raxxla member page** happens only when you type a
-  code from that page into EDSMT.
+  code from that page into EDSMT. Once paired, EDSMT asks that page at start
+  and every few hours what your membership gives it - supporter voices - and
+  nothing about your game goes with the question. With supporter voices it
+  then fetches the extra recordings from the community service, in one
+  download, and keeps them on this PC.
 - **Inara reporting is off unless you enter your own Inara API key.** The key
   is sent to inara.cz and nowhere else.
 

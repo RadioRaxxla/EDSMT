@@ -119,7 +119,8 @@ def _e6():
 
 @section("E1: the question, the line on leaving, and the visited list")
 def _e1():
-    check("the question", RC.ASK == "Still there? UPDATE or MINED OUT")
+    # 1.201: MINED OUT is called Deposit depleted.
+    check("the question", RC.ASK == "Still there? UPDATE or DEPOSIT DEPLETED")
     check("it is spoken by the Windows voice, no recording",
           VO.SPOKEN_ONLY.get("still_there") and "update" in VO.SPOKEN_ONLY["still_there"].lower())
     check("leaving without answering is one line naming the deposit",
@@ -202,7 +203,7 @@ def _e5():
         check("the guide says it in the same words: %s..." % part[:40], " ".join(part.split()) in flat)
     check("short: a handful of paragraphs", 3 <= len(RC.HOWTO_WORDS.split("\n\n")) <= 6)
     check("it names the question, the list, the search and the points",
-          all(word in RC.HOWTO_WORDS for word in ("Still there? UPDATE or MINED OUT", "Due a check",
+          all(word in RC.HOWTO_WORDS for word in ("Still there? UPDATE or DEPOSIT DEPLETED", "Due a check",
                                                   "may be back", "Site checker")))
     check("and says nothing the public tree must not", not any(w in RC.HOWTO_WORDS for w in (
           "serv" + "er settings", "DECIS" + "IONS")))
@@ -402,7 +403,7 @@ def _list():
     pump()
     check("a window opens, and is not modal", window is not None and window.winfo_exists()
           and not window.grab_current(), window)
-    check("it has the three answers for each deposit", set(window.button_texts()) >= {"Still there", "Mined out", "Skip"},
+    check("it has the three answers for each deposit", set(window.button_texts()) >= {"Still there", "Deposit depleted", "Skip"},
           window.button_texts())
     app.community.uploads.clear()
     window.answer(a["id"], "still")

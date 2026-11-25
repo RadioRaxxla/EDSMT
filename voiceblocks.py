@@ -17,6 +17,7 @@ here needs a window.
 
 import array
 import hashlib
+import io
 import math
 import os
 import sys
@@ -111,9 +112,15 @@ def direction_blocks(lead, metres, bearing):
     return ([str(lead)] if lead else []) + distance + point
 
 
-def _read(path):
-    """(params, samples) of a 16-bit wave, or None if it is anything else."""
+def _read(path, vault=None):
+    """(params, samples) of a 16-bit wave, or None if it is anything else.
+    A sealed recording (1.201) is opened in memory with `vault`."""
     try:
+        if vault is not None and str(path).endswith(".rrv"):
+            raw = vault.read(path)
+            if not raw:
+                return None
+            path = io.BytesIO(raw)
         with wave.open(path, "rb") as handle:
             params = (handle.getnchannels(), handle.getsampwidth(), handle.getframerate())
             raw = handle.readframes(handle.getnframes())
@@ -141,7 +148,7 @@ def _trim(samples, channels):
     return array.array("h", samples[start * channels:end * channels])
 
 
-def join_wavs(paths, out_path, gap_ms=0):
+def join_wavs(paths, out_path, gap_ms=0, vault=None):
     """The recordings one after another as one wave, at out_path: the same
     format throughout, the silence at each end trimmed, `gap_ms` of
     silence between one and the next,
@@ -150,7 +157,7 @@ def join_wavs(paths, out_path, gap_ms=0):
     or is only silence."""
     parts, params = [], None
     for path in paths:
-        got = _read(path)
+        got = _read(path, vault)
         if got is None:
             return False
         if params is None:
@@ -184,6 +191,17 @@ def join_wavs(paths, out_path, gap_ms=0):
     temp = out_path + ".part"
     try:
         os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+        if vault is not None:
+            # 1.201: a join of sealed recordings is kept sealed.
+            made = io.BytesIO()
+            with wave.open(made, "wb") as handle:
+                handle.setnchannels(channels)
+                handle.setsampwidth(2)
+                handle.setframerate(rate)
+                handle.writeframes(out.tobytes())
+            written = vault.write(out_path[:-4] if out_path.endswith(".rrv") else out_path,
+                                  made.getvalue())
+            return written == out_path or os.path.isfile(out_path)
         with wave.open(temp, "wb") as handle:
             handle.setnchannels(channels)
             handle.setsampwidth(2)

@@ -1,15 +1,15 @@
 {
-  "version": "1.20000",
+  "version": "1.20100",
   "url": "https://radioraxxla.com/EDSMT/",
-  "headline": "New \u2014 one data window, a key to the map, tonnes left",
+  "headline": "Fixes from testers' reports, clearer names for the two depleted buttons, and supporter voices",
   "installer": {
-    "url": "https://radioraxxla.com/EDSMT/EDSMT-Setup.exe?v=1.20000",
-    "sha256": "d493d0f915abbb2de0c0ec32fcf188840b115f595836bf3a69e53daa195087e1",
-    "bytes": 80995259
+    "url": "https://radioraxxla.com/EDSMT/EDSMT-Setup.exe?v=1.20100",
+    "sha256": "1284487c195c917501914d7f2e052d073f8fdfdfeb2365a76ce4dd861892ab7d",
+    "bytes": 41008110
   },
   "portable": {
-    "url": "https://radioraxxla.com/EDSMT/EDSMT.exe?v=1.20000",
-    "sha256": "dfb1fa3f1a9abf6353d37b54ee4a095b69e878d562f5c5d7d75ecbcfa86478b7",
-    "bytes": 93823148
+    "url": "https://radioraxxla.com/EDSMT/EDSMT.exe?v=1.20100",
+    "sha256": "962828f1a5764e6a103b645c2a862ca8dedef6c30384e1f3a023dd365101b006",
+    "bytes": 49337577
   }
 }

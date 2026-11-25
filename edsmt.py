@@ -100,6 +100,8 @@ import materials as MT
 import wingmates as WM
 import webhooks as WH
 import streamer as ST
+import perks as PK
+import packs as PX
 import streamout as SO
 import sessioncard as SC
 import sonar as SN
@@ -816,16 +818,34 @@ def warning_sound(profane=False):
     return path if os.path.isfile(path) else ""
 
 
-def voice_folders():
+def voice_folders(packs=False):
     """Where Voice Mode looks for voice/<theme>/<id>.wav recordings (1.10040):
     the bundle first (an installed build keeps what it ships in PyInstaller's
     own folder, not beside the exe), then beside the app, then the data
-    folder, where a downloaded pack lands. Each folder once."""
-    out = []
+    folder, where a downloaded pack lands. Each folder once.
+
+    `packs` (1.10042): a supporter's recorded voice packs, kept in the data
+    folder and looked in before anything else. Only while the perks hold."""
+    out = [os.path.join(DATA_DIR, "packs")] if packs else []
     for folder in (shipped_file(), app_dir(), DATA_DIR):
         if folder and folder not in out:
             out.append(folder)
     return out
+
+
+def recordings_words(theme, folders):
+    """What Settings says about the voice picked (1.201): how much of it is
+    recorded, and that nothing fills in for what is not."""
+    theme = VO.clean_theme(theme)
+    if VO.reads_words(theme):
+        return ("Windows voice reads every line, distance and direction itself: it has "
+                "no recordings, and plays none of another voice's.")
+    lines = len(VO.LINES) - len(VO.unrecorded(theme, folders))
+    blocks = len(VB.ALL_BLOCKS) - len(VO.missing_blocks(theme, folders))
+    return ("Recorded in this voice: %d of %d lines, %d of %d distance and direction "
+            "blocks. The voice picked is the only one heard: a line it has no recording "
+            "of is not said, and a distance and direction are said only when every block "
+            "they need is there." % (lines, len(VO.LINES), blocks, len(VB.ALL_BLOCKS)))
 
 
 def data_dir():
@@ -976,6 +996,12 @@ DEFAULT_SETTINGS = {
     # handed back once, a secret like every key, and the device it names.
     "portal_token": "",
     "portal_device": "",
+    # What the member page says this install may have (1.10042, perks.py):
+    # the roles, when it was checked, the grant the page signed (a secret,
+    # never in a log or the support bundle) and the page's pinned key ids.
+    "perks": {},
+    "perks_grant": "",
+    "perks_keys": [],
     # The community leaderboard (1.10036). Everyone is on it - the names are
     # on the finds already - and Leave in its window takes a commander off.
     "leaderboard_optin": True,
@@ -3795,8 +3821,13 @@ class PlanView(tk.Canvas):
             label = "%s  %s" % (item["commodity"], _metres(item["range_m"]))
             if rigs:
                 label += "  %sR" % rigs
+            # 1.201: a depleted deposit says so, and since when - a hollow
+            # ring on its own told a tester nothing.
+            spent = RG.tag(item["deposit"])
+            if spent:
+                label += "  " + spent
             placed = self._label(x, y, r, label, TEXT if chosen else MUTED,
-                                 bounds, bold=chosen, force=chosen,
+                                 bounds, bold=chosen, force=chosen or bool(spent),
                                  tags=("label",))
             if not placed:
                 hidden += 1
@@ -5740,7 +5771,7 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                           command=self.show_best_patch),
             TIPS["best_patch"]).pack(side="left", fill="x", expand=True,
                                      padx=(0, 3))
-        tip(ctk.CTkButton(actions, text="Worked out", height=28,
+        tip(ctk.CTkButton(actions, text="Location depleted", height=28,
                           font=F_STRONG, **BTN_WARN,
                           command=self.mark_worked_out),
             TIPS["worked_out"]).pack(side="left", fill="x", expand=True,
@@ -5902,7 +5933,7 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         self.detail.pack(fill="both", expand=True, padx=14, pady=10)
 
         self.detail_buttons = ctk.CTkFrame(rail, fg_color="transparent")
-        tip(ctk.CTkButton(self.detail_buttons, text="MINED OUT", height=32,
+        tip(ctk.CTkButton(self.detail_buttons, text="DEPOSIT DEPLETED", height=32,
                           font=F_STRONG, **BTN_WARN,
                           command=self.mark_mined), TIPS["mined_out"]).pack(
                               fill="x", pady=(2, 4))
@@ -6044,6 +6075,7 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                 self.show_map_cards()
             self.post_discord_sessions()
             self.follow_streamer()
+            self.follow_perks()
             stage = "Online reporting"
             self.report_online(self.game)
         except Exception as exc:
@@ -7970,13 +8002,15 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
             bits = [row.get("commodity") or "unnamed"]
             if row.get("rigs"):
                 bits.append("%sR" % row["rigs"])
-            if row.get("amount"):
+            spent = SV.is_depleted(row.get("amount"))
+            if row.get("amount") and not spent:
                 bits.append(row["amount"])
             mined, _others = SV.own_tonnes(row)
             if mined:
                 bits.append("%dt mined" % mined)
-            if SV.is_depleted(row.get("amount")):
-                bits.append("mined out")
+            if spent:
+                # 1.201: "depleted 21 Nov", in the amount's place.
+                bits.append(RG.tag(row).replace("DEPLETED", "depleted"))
             live = row.get("id") == chosen
 
             line = ctk.CTkFrame(box, fg_color="transparent")
@@ -8169,7 +8203,7 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
             return
         try:
             self.pick_deposit(deposit, guide=False)
-            self.say("On your %s deposit, %s away - picked, so MINED OUT and "
+            self.say("On your %s deposit, %s away - picked, so DEPOSIT DEPLETED and "
                      "UPDATE act on it. The boxes on the left show what is "
                      "recorded for it." % (deposit.get("commodity") or "unnamed",
                                            _metres(metres)), CYAN)
@@ -8598,6 +8632,24 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
             pass
         self.visited_window = VisitedWindow(self)
         return self.visited_window
+
+    def show_deposit(self, row):
+        """Any deposit of yours, shown: My sites opens on it, its card and its
+        map, wherever it is; on the body you are on it is also picked on the
+        main map, which comes back to the map tab (1.201)."""
+        sites = self.open_sites()
+        try:
+            sites.show_deposit(row)
+        except Exception as exc:
+            self.trouble("My sites", exc)
+        system, body = self.here()
+        if SV.fold(row.get("system")) == SV.fold(system) and SV.fold(row.get("body")) == SV.fold(body):
+            try:
+                self.show_map()
+            except Exception:
+                pass
+            self.pick_deposit(row, guide=False)
+        return sites
 
     def visit_answer(self, deposit_id, how):
         """One click on the list. "still" is a check - shared as it stands and
@@ -10680,7 +10732,7 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
             return False        # no voice before the question is answered
         self.voice_trouble()
         try:
-            speaker.folders = voice_folders()
+            self.voice_packs(speaker)
             speaker.set_rate(settings.get("voice_rate", VO.DEFAULT_RATE)
                              if rate is None else rate)
             speaker.comms = settings.get("voice_comms", True) is not False
@@ -10750,7 +10802,9 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                     cues.see(event, now)
             if watcher is not None:
                 cues.status(getattr(watcher, "flags", 0), now)
-            if not settings.get("voice_mode") or VO.clean_theme(settings.get("voice_theme")) != "celestia":
+            # 1.201: her hints, reactions and asides are a supporter's extras.
+            if not settings.get("voice_mode") or VO.clean_theme(settings.get("voice_theme")) != "celestia" \
+                    or not self.packs_allowed():
                 cues.due(now, hints=False, chatty=False)
                 return ""
             line = cues.due(now, hints=VC.hints_wanted(settings.get("voice_pack_hints"),
@@ -10917,7 +10971,12 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
 
     def say_directions(self, view, now=None):
         """The distance and clock-face direction to the target, when due -
-        with Spoken directions on, in the Rhino. The words said, or ""."""
+        with Spoken directions on, in the Rhino. The words said, or "".
+
+        1.201: in the voice picked and no other. The clock-face words are
+        read by the Windows voice, so they are heard with it picked; a
+        recorded voice says the target deposit's distance and compass point
+        from its own recordings when it has them, and otherwise nothing."""
         now = time.time() if now is None else now
         settings = attr(self, "settings", None) or {}
         if not settings.get("voice_directions") or not view.get("rhino"):
@@ -10936,27 +10995,28 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
         try:
             if speaker is None:
                 return ""
+            theme = VO.clean_theme(settings.get("voice_theme"))
             speaker.set_rate(settings.get("voice_rate", VO.DEFAULT_RATE))
             speaker.comms = settings.get("voice_comms", True) is not False
             self.point_audio(speaker)
             if target.get("bearing") is not None and str(target["key"]).startswith("deposit:"):
                 # 1.10042 (G4): a voice with recordings of the blocks says the
-                # distance and compass point from them; without every one the
-                # words above are said, as before.
-                speaker.folders = voice_folders()
+                # distance and compass point from them. 1.201: without every
+                # one a recorded voice says nothing; the Windows voice reads
+                # the words above.
+                self.voice_packs(speaker)
                 said = speaker.say_direction(
-                    "nearest", target["range_m"], target["bearing"],
-                    VO.clean_theme(settings.get("voice_theme")),
+                    "nearest", target["range_m"], target["bearing"], theme,
                     place=VO.place_from(attr(self, "game", None)),
                     detail=settings.get("voice_detail"), text=words)
             else:
-                said = speaker.say_text(words)
-            if not said:
-                return ""
+                said = speaker.say_words(words, theme)
         except Exception:
             return ""
+        # Marked either way: a voice with nothing to say for this target is
+        # asked again when the next one is due, not at every tick.
         timer.said(now, target["key"])
-        return words
+        return words if said else ""
 
     def make_voiceattack_profile(self, settings=None, folder=None):
         """The VoiceAttack profile (1.10040, #152), written to the data folder
@@ -12822,6 +12882,7 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
                             "Make a new code and try again.", AMBER)
         self.settings["portal_token"] = token
         self.settings["portal_device"] = device
+        self._perks_asked = 0
         if not save_settings(self.settings):
             self.say("Paired, but the settings could not be written - it "
                      "lasts until EDSMT closes.", AMBER)
@@ -12832,7 +12893,162 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
     def forget_pairing(self):
         """Drop the pairing here. The member page revokes it there."""
         self.settings = PR.forget(self.settings)
+        self.settings["perks"], self.settings["perks_grant"] = {}, ""
         save_settings(self.settings)
+        self._show_pairing_open()
+
+    # -- perks: supporter voices and tester builds (1.10042) ----------------
+
+    def perks_clock(self):
+        return time.time()
+
+    def perks_state(self):
+        """Where the perks stand now (perks.current). Never raises."""
+        try:
+            return PK.current(attr(self, "settings", None) or {}, self.perks_clock())
+        except Exception:
+            return PK.current({}, 0)
+
+    # -- 1.201: the supporter packs ------------------------------------------
+
+    def packs_allowed(self):
+        """Whether this install may have the supporter packs: a supporter's
+        grant from the member page, or a staff key (staff have every voice)."""
+        if self.perks_active("supporter"):
+            return True
+        settings = attr(self, "settings", None) or {}
+        return bool(str(settings.get("community_token") or "").strip())
+
+    def pack_vault(self):
+        """The key and the sealed files of this PC's packs (packs.Vault)."""
+        vault = attr(self, "_pack_vault", None)
+        if vault is None:
+            vault = self._pack_vault = PX.Vault(os.path.join(DATA_DIR, "packs"))
+        return vault
+
+    def voice_packs(self, speaker):
+        """The speaker's folders and vault, as the packs now stand."""
+        allowed = self.packs_allowed()
+        speaker.folders = voice_folders(packs=allowed)
+        speaker.vault = self.pack_vault() if allowed else None
+        return allowed
+
+    def follow_packs(self, now):
+        """While the packs are allowed: fetch what the API lists that this
+        PC lacks, at start and about every six hours. A pack comes whole, as
+        one file, so the whole voice is there together; a handful of new
+        recordings come a few at a time (packs.SLICE) with a pause between.
+        On a worker of its own, so the wing link, the leaderboard and prices
+        never wait behind it. take_packs() says when the next job may go.
+        Never raises."""
+        try:
+            if not self.packs_allowed() or attr(self, "_packs_asking", False):
+                return False
+            if now < float(attr(self, "_packs_due", 0) or 0):
+                return False
+            header = PX.auth(self.perks_state(), (attr(self, "settings", None) or {}).get("community_token"))
+            if header is None:
+                return False
+            run = attr(self, "_packs_run", None)
+            if run is None:
+                run = self._packs_run = {}
+            worker = attr(self, "pack_worker", None)
+            if worker is None:
+                worker = self.pack_worker = EDO.Worker()
+            self._packs_asking = True
+            worker.submit(PX.JOB_TAG, PX.sync_job(
+                self.community.base_url, header, EDO.get_json, EDO.get_bytes,
+                os.path.join(DATA_DIR, "packs"), self.pack_vault(),
+                most=PX.SLICE, state=run))
+            return True
+        except Exception:
+            self._packs_asking = False
+            return False
+
+    def take_packs(self, ok, message):
+        """What one small fetch brought. More to come: said once, and the
+        next few go after a pause - a longer one when the map was busy. All
+        here: said once, with how many came in the whole run; then the next
+        look is about six hours off. Never raises."""
+        self._packs_asking = False
+        try:
+            now = self.perks_clock()
+            done = json.loads(message) if ok else None
+        except (TypeError, ValueError):
+            done = None
+        except Exception:
+            return None
+        if not isinstance(done, dict):
+            # The list could not be had: try again in a while, not at once
+            # and not in six hours.
+            self._packs_due = now + PX.RETRY_S
+            return None
+        run = attr(self, "_packs_run", None)
+        if run is None:
+            run = self._packs_run = {}
+        run["got"] = int(run.get("got") or 0) + int(done.get("got") or 0)
+        left = int(done.get("left") or 0)
+        if left:
+            self._packs_due = now + (PX.BUSY_GAP_S if done.get("stopped") else PX.SLICE_GAP_S)
+            if not run.get("told"):
+                run["told"] = True
+                about = PX.minutes_for(left)
+                self.say("Supporter voices: %d more recordings to fetch one at a time, over about "
+                         "%s. Each is used as soon as it is here." % (
+                             left, "a minute" if about == 1 else "%d minutes" % about), DIM)
+            return done
+        self._packs_due = now + PK.EVERY_S
+        got, failed = run["got"], int(done.get("failed") or 0)
+        self._packs_run = None
+        if got:
+            self.say("Supporter voices: %d new recording%s ready.%s" % (
+                got, "" if got == 1 else "s",
+                (" %d did not arrive whole and will be fetched again later." % failed) if failed else ""),
+                GREEN)
+        return done
+
+    def perks_active(self, role):
+        """Whether the member page lets this install have `role` -
+        "supporter" or "tester" - on a grant that checks and has not run out."""
+        return bool(self.perks_state().get(role))
+
+    def follow_perks(self):
+        """Every tick: say once if supporter voices have just gone, and ask
+        the member page at start and about every six hours while paired.
+        Never raises."""
+        try:
+            now = self.perks_clock()
+            self.note_perks_change()
+            if PK.due(self.settings, attr(self, "_perks_asked", 0), now) \
+                    and not attr(self, "_perks_asking", False):
+                self._perks_asked = now
+                self._perks_asking = True
+                self.worker.submit(PK.TAG, PK.refresh_job(
+                    self.settings.get("portal_token"), EDO.get_json,
+                    list(self.settings.get("perks_keys") or [])))
+        except Exception:
+            pass
+        self.follow_packs(self.perks_clock())
+
+    def note_perks_change(self):
+        """Supporter voices that have gone are said once; the packs stay on
+        disk and the Basic lines carry on."""
+        now_on = self.perks_active("supporter")
+        if PK.went(attr(self, "_perks_was", False), now_on):
+            self.say("Supporter voices are off - this computer is no longer a "
+                     "supporter on the member page. The Basic lines carry on; "
+                     "the downloaded packs stay on disk.", AMBER)
+        self._perks_was = now_on
+
+    def take_perks(self, ok, message):
+        """The member page's answer, kept. The grant is never said."""
+        self._perks_asking = False
+        if not ok:
+            # Not reached: the last answer holds until its grant runs out.
+            return
+        self.settings = PK.apply(self.settings, message, self.perks_clock())
+        save_settings(self.settings)
+        self.note_perks_change()
         self._show_pairing_open()
 
     def _show_pairing_open(self):
@@ -13885,6 +14101,14 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
             finished = self.worker.drain()
         except Exception:
             return
+        try:
+            # 1.201: the supporter packs are fetched on a worker of their
+            # own, so a pack's one large file holds nothing else up.
+            packs = attr(self, "pack_worker", None)
+            if packs is not None:
+                finished = list(finished) + list(packs.drain())
+        except Exception:
+            pass
         for tag, ok, message in finished:
             if tag == "body":
                 self.take_shared(ok, message)
@@ -13901,6 +14125,13 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
             if tag == PR.TAG:
                 # Never the catch-all below: that would show the token.
                 self.take_pairing(ok, message)
+                continue
+            if tag == PK.TAG:
+                # Nor this: the answer holds the grant.
+                self.take_perks(ok, message)
+                continue
+            if tag == PX.JOB_TAG:
+                self.take_packs(ok, message)
                 continue
             if tag == IK.TAG:
                 # Nor this: the answer is the key.
@@ -14156,6 +14387,15 @@ class EDSMT(GD.GuidanceMixin, ctk.CTk):
             RL.start(command)
         except Exception as exc:
             claim_single_instance()
+            if RL.blocked(exc):
+                # 1.201: Smart App Control (or another blocker) can refuse a
+                # new installer it has not seen yet. Said plainly, with the
+                # page to download it from.
+                self.say("Windows did not let the new installer start - Smart App Control "
+                         "or another app blocker stopped it. The EDSMT page is open: "
+                         "download it there and run it.", RED)
+                self.open_download_page()
+                return False
             self.say("Could not start the update: %s. It is saved at %s"
                      % (exc, path), RED)
             return False
@@ -15177,8 +15417,10 @@ TIPS = {
               "sets it; pick another to look at it.",
     "best_patch": "Points the map at the richest group of deposits you can "
                   "rig from one place.",
-    "worked_out": "Tell everyone the selected site is stripped, so nobody "
-                  "drives out to an empty patch.",
+    "worked_out": "Location depleted: tells everyone the whole signal is stripped, so "
+                  "nobody drives out to an empty location. Not a delete: the location "
+                  "drops out of search results and comes back as it regrows. For one "
+                  "deposit, use DEPOSIT DEPLETED.",
     "move_centre": "Moves the survey centre to where you are now, without "
                    "logging the signal again.",
     "clear_survey": "Forgets the centre, border and swept ground of this "
@@ -15203,7 +15445,9 @@ TIPS = {
     "pad_rigs": "Marks the next rig down where the Rhino is. The rig keys "
                 "mark each rig by number.",
     "pad_allup": "Every rig up: stops the distance warnings.",
-    "mined_out": "Marks the selected deposit as worked out.",
+    "mined_out": "Deposit depleted: marks the selected deposit Depleted and keeps what "
+                 "it gave. It stays on the map, labelled DEPLETED and the day, until "
+                 "somebody says it is back.",
     "edit": "Change the selected deposit - commodity, rigs, amount, "
             "density, notes. Double-clicking it on the map does the same.",
     "copy_share": "Copies the selected find as one line you can paste into "
@@ -15346,14 +15590,16 @@ SETTING_TIPS = {
                    "Flight controller or Radio Raxxla on-air. Celestia's comms sound "
                    "different in the ship, in the Rhino and on foot, on their own. "
                    "Windows voice is Windows' own speech with no recordings: it works on "
-                   "any PC, and it sounds flat and robotic beside the recorded voices.",
+                   "any PC, and it sounds flat and robotic beside the recorded voices. "
+                   "The voice picked is the only one heard: a line it has no recording "
+                   "of is not said.",
     "audio_device": "Where the voice, the recordings and the rig warning sound play: the "
                     "system's default device, or another output such as a headset. The "
                     "proximity sonar's tones always use the default device. Windows only.",
     "voice_comms": "Celestia's and the Flight controller's lines are given the comm sound of where you are - a small, "
                    "medium or large ship (a tight cockpit to a bridge), the Rhino or on foot. "
                    "Off, the recordings play clean.",
-    "voice_rate": "How quickly Windows' speech reads the lines. A recording plays at "
+    "voice_rate": "How quickly the Windows voice reads. A recording plays at "
                   "its own speed.",
     "discord_presence": "Rich Presence: your Discord profile says Playing Surface Mining with EDSMT and "
                         "what you are mining, with Cr/hr and rigs down, through the "
@@ -15370,7 +15616,10 @@ SETTING_TIPS = {
                         "voice pack; this switch either way.",
     "voice_directions": "For a headset, where the overlay cannot be seen: how far and which "
                         "way, on a clock face, to the next pin, waypoint, the target "
-                        "deposit or the nearest rig. Windows only.",
+                        "deposit or the nearest rig. Read by the Windows voice, so heard "
+                        "with Windows voice picked; a recorded voice says the distance "
+                        "and compass point to the target deposit when it has the "
+                        "recordings, and nothing otherwise. Windows only.",
     "voice_directions_s": "How often the directions are said while you drive, 5 to 60 "
                           "seconds. A new target is said at once; never more than one "
                           "line every 3 seconds.",
@@ -16024,6 +16273,9 @@ class SettingsWindow(ctk.CTkToplevel):
         self.pair_line = ctk.CTkLabel(body, text="", font=F_SMALL, text_color=MUTED,
                                       justify="left", wraplength=560, anchor="w")
         self.pair_line.pack(fill="x", padx=10, pady=(0, 4))
+        self.perks_line = ctk.CTkLabel(body, text="", font=F_SMALL, text_color=MUTED,
+                                       justify="left", wraplength=560, anchor="w")
+        self.perks_line.pack(fill="x", padx=10, pady=(0, 4))
         self.show_pairing()
 
         body = self.pages["Sharing"]
@@ -17629,6 +17881,11 @@ class SettingsWindow(ctk.CTkToplevel):
         theme, rate = self._picked("voice_theme"), self._picked("voice_rate")
         began = time.time()
         if not self.app.speak("voice_test", force=True, theme=theme, rate=rate):
+            able = getattr(attr(self.app, "voice", None), "available", False)
+            if able and not VO.reads_words(theme):
+                # 1.201: no other voice says it in its place.
+                return self.say("%s has no recording of the test line on this computer, so "
+                                "nothing was said." % dict(VO.THEMES).get(theme, theme), AMBER)
             return self.say("Nothing to speak with here: Voice Mode uses Windows' "
                             "own speech.", AMBER)
         # 1.10042: it says how it went once the speech process has had time
@@ -17755,6 +18012,9 @@ class SettingsWindow(ctk.CTkToplevel):
         else:
             self.pair_line.configure(text="Not paired.", text_color=MUTED)
             self.pair_forget.pack_forget()
+        state = self.app.perks_state()
+        self.perks_line.configure(text=PK.line(state),
+                                  text_color=GREEN if state.get("supporter") else MUTED)
 
     def pair_now(self):
         """Pair: the code in the box goes to the member page."""
@@ -17924,17 +18184,11 @@ class SettingsWindow(ctk.CTkToplevel):
     def show_recordings(self):
         """How much of the voice picked is recorded: the lines of the pack
         and the building blocks for distances and directions (1.10042).
-        What has no recording is spoken by Windows. Never raises."""
+        1.201: what the voice has no recording of is not said. Never raises."""
         try:
-            theme = VO.clean_theme(self.app.settings.get("voice_theme"))
-            folders = voice_folders()
-            lines = len(VO.LINES) - len(VO.unrecorded(theme, folders))
-            blocks = len(VB.ALL_BLOCKS) - len(VO.missing_blocks(theme, folders))
-            self.recordings_note.configure(text=(
-                "Recorded in this voice: %d of %d lines, %d of %d distance and direction "
-                "blocks. A line without a recording is spoken by Windows; a distance "
-                "and direction are only played from blocks when every block they need "
-                "is there." % (lines, len(VO.LINES), blocks, len(VB.ALL_BLOCKS))))
+            self.recordings_note.configure(text=recordings_words(
+                self.app.settings.get("voice_theme"),
+                voice_folders(packs=self.app.packs_allowed())))
         except Exception:
             pass
 
@@ -18264,9 +18518,11 @@ class VisitedWindow(ctk.CTkToplevel):
         self._buttons = []
         self._texts = []
         self.note = ctk.CTkLabel(
-            self, text="You drove onto these and left without UPDATE or MINED OUT. "
-                       "One click each; Skip leaves the deposit as it is. Show picks "
-                       "the deposit in the main window, on the map and in the details.",
+            self, text="You drove onto these deposits and left without answering "
+                       "\"Still there?\". One click each: Still there if it still has rock "
+                       "to mine, Deposit depleted if it is mined out, Skip to leave it as it "
+                       "is. Show opens it in My sites with its card and map, so you can tell "
+                       "which one it is.",
             font=F_BODY, text_color=MUTED, anchor="w", justify="left", wraplength=720)
         self.note.pack(side="top", fill="x", padx=14, pady=(12, 6))
         self.body = ctk.CTkScrollableFrame(self, fg_color=VOID)
@@ -18303,16 +18559,18 @@ class VisitedWindow(ctk.CTkToplevel):
             self._texts.append("\n".join(words))
             # The answers first, from the right, so a long line cannot push
             # them out of the window.
-            for label, how in (("Skip", "skip"), ("Mined out", "mined"), ("Still there", "still")):
-                button = ctk.CTkButton(line, text=label, width=90, height=28, font=F_SMALL,
+            for label, how in (("Skip", "skip"), ("Deposit depleted", "mined"), ("Still there", "still")):
+                button = ctk.CTkButton(line, text=label, width=118 if how == "mined" else 90,
+                                       height=28, font=F_SMALL,
                                        **(BTN_PRIMARY if how == "still" else BTN_SECONDARY),
                                        command=lambda i=row["id"], h=how: self.answer(i, h))
                 button.pack(side="right", padx=3, pady=6)
                 self._buttons.append((label, button))
             show = tip(ctk.CTkButton(line, text="Show", width=64, height=28, font=F_SMALL,
                                      **BTN_SECONDARY, command=lambda i=row["id"]: self.show(i)),
-                       "Picks this deposit in the main window, so the map and the details "
-                       "show which one it is. It stays on this list.")
+                       "Opens this deposit in My sites - its card says where it is, on any "
+                       "body - and picks it on the map when it is on the body you are on. "
+                       "It stays on this list.")
             show.pack(side="right", padx=(10, 3), pady=6)
             self._buttons.append(("Show", show))
             text = ctk.CTkFrame(line, fg_color="transparent")
@@ -18345,12 +18603,15 @@ class VisitedWindow(ctk.CTkToplevel):
         return list(self._texts)
 
     def show(self, deposit_id):
-        """Pick that deposit in the main window. It stays on the list."""
+        """That deposit in My sites - its card and map, on any body - and
+        picked on the main map when it is on the body you are on. It stays
+        on the list. (1.201: "Show did nothing" for a tester; it only
+        changed the details panel behind this window.)"""
         row = next((d for d in (attr(self.app.store, "deposits", None) or [])
                     if str(d.get("id")) == str(deposit_id)), None)
         if row is not None:
             try:
-                self.app.on_pick(row)
+                self.app.show_deposit(row)
             except Exception as exc:
                 self.app.trouble("Showing the deposit", exc)
         return row
@@ -25564,7 +25825,7 @@ CARD_BUTTONS = (
     ("Guide me there", "The map and the overlay point at it until you get there, on whatever "
                        "body it is; until then this window says where to go."),
     ("Share", "Copies its share line - another EDSMT pastes it in."),
-    ("Mark depleted", "You worked it out: marked Depleted, and what it gave is kept."),
+    ("Deposit depleted", "You worked it out: marked Depleted, and what it gave is kept."),
     ("Copy position", "Copies its latitude and longitude."),
     ("Delete", "Deletes it from your records, after asking."))
 
@@ -26029,6 +26290,15 @@ class SitesWindow(ToolWindow):
         else:
             self._show_deposit(row)
 
+    def show_deposit(self, deposit):
+        """One deposit of yours, from anywhere in the app: its location's
+        deposits below, it picked, its card shown (1.201)."""
+        self._show_deposit({"id": deposit.get("id"), "deposit": deposit,
+                            "location": str(deposit.get("location") or "")})
+        if attr(self, "_card_row", None) is None or self._card_row.get("id") != deposit.get("id"):
+            self._card_for({"id": deposit.get("id"), "deposit": deposit})
+        return self
+
     def _show_deposit(self, row):
         deposit = row["deposit"]
         self.show_place(deposit.get("system") or "", deposit.get("body") or "",
@@ -26092,14 +26362,14 @@ class SitesWindow(ToolWindow):
             return self.copy_text("the share line", share_line(deposit))
         if name == "Copy position":
             return self.copy_text("the position", "%s, %s" % (deposit.get("lat"), deposit.get("lon")))
-        if name == "Mark depleted":
+        if name == "Deposit depleted":
             return self.mark_depleted(deposit)
         if name == "Delete":
             return self.delete_deposit(deposit)
         return None
 
     def mark_depleted(self, deposit):
-        """The app's own MINED OUT, on this deposit, wherever it is."""
+        """The app's own DEPOSIT DEPLETED, on this deposit, wherever it is."""
         app = self.app
         kept = attr(app, "selected", None)
         try:

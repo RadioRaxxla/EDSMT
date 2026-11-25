@@ -130,12 +130,17 @@ say_n(sp, "border_set", "on_air", 5)
 got = sent(sp, 5)
 check("one take: same file every time", len(got) == 5 and len(set(got)) == 1)
 
-print("== the Windows voice when there is no recording ==")
+print("== no recording: nothing said, and no other voice reads it (1.201) ==")
 sp = speaker_for()
-sp.say_line("online", "on_air")
+took = sp.say_line("online", "on_air")
 import time
 time.sleep(0.2)
-check("no file, the words are spoken", any(x.startswith("S ") for x in sp._proc_stand.lines),
+check("no file, nothing is said", took is False and not any(x[:2] in ("S ", "W ") for x in sp._proc_stand.lines),
+      sp._proc_stand.lines)
+sp = speaker_for()
+sp.say_line("online", "windows")
+time.sleep(0.2)
+check("the Windows voice, picked, reads its words", any(x.startswith("S ") for x in sp._proc_stand.lines),
       sp._proc_stand.lines)
 
 print("== takes in the history are not confused with Chatty text takes ==")
@@ -162,9 +167,10 @@ check("What did it say? holds the words of the take that was played",
 _pack = os.path.join(REPO, "voice", "celestia")
 _extra = sorted(n[:-4] for n in os.listdir(_pack) if n.endswith(".wav") and n[:-4] not in VO.TAKES
                 and n[:-4] not in VO.VB.ALL_BLOCKS)
-check("seventy later takes ship with her pack", len(_extra) == 70, len(_extra))
-check("every one has its words, and every listed take its recording",
-      _extra == sorted(VO.TAKE_WORDS["celestia"]), sorted(set(_extra) ^ set(VO.TAKE_WORDS["celestia"]))[:6])
+# 1.201: her later takes are a supporter's pack, fetched from the API; that
+# each is recorded with its words is checked where the pack is kept.
+check("her later takes are not in the free install", len(_extra) == 0, _extra[:5])
+check("seventy later takes have their words", len(VO.TAKE_WORDS["celestia"]) == 70, len(VO.TAKE_WORDS["celestia"]))
 _hits = [VO.TAKE_FILE.match(n + ".wav") for n in _extra]
 check("each is a take of a line of the pack",
       all(h and h.group("stem") in VO.TAKES and int(h.group("n")) >= 2 for h in _hits))

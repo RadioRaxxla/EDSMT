@@ -5,7 +5,9 @@ recording of the whole phrase, and the sixteen compass points - a line
 like "Nearest deposit, 2.4 kilometres north-east" is the lead, the
 distance and the point joined into one recording, a breath between them
 and no clipped join. When any block is missing the whole line is the
-Windows voice, never half and half.
+Windows voice, never half and half. 1.201: the voice picked is the only one
+heard, so a recorded voice without every block says nothing; the words are
+read when the Windows voice is the one picked.
 
     python tests/test_110042_blocks.py
 """
@@ -128,13 +130,16 @@ check("a take counts as the block recorded", (put("on_air", "dist_m_350", root, 
 check("a tenth of a kilometre is not a take of the whole one",
       (put("on_air", "dist_km_2p4", root) or True) and "dist_km_2" in VO.missing_blocks("on_air", [root]))
 
-print("== Celestia says every one of them herself ==")
-check("nothing left to record", VO.missing_blocks("celestia", [REPO]) == [],
-      VO.missing_blocks("celestia", [REPO])[:5])
+print("== Celestia's distances are a supporter's pack (1.201) ==")
+check("the free install has none of them: she says no distance there",
+      len(VO.missing_blocks("celestia", [REPO])) == len(VO.VB.ALL_BLOCKS), len(VO.missing_blocks("celestia", [REPO])))
+tenths = os.path.join(TMP, "tenths")
+for ident in ("dist_km_2", "dist_km_2p4", "dist_m_1", "dist_m_10"):
+    put("celestia", ident, tenths)
 check("two kilometres has one recording, not its tenths as takes",
-      [os.path.basename(p) for p in VO.recording_takes("dist_km_2", "celestia", [REPO])] == ["dist_km_2.wav"])
+      [os.path.basename(p) for p in VO.recording_takes("dist_km_2", "celestia", [tenths])] == ["dist_km_2.wav"])
 check("nor is one metre given the tens",
-      [os.path.basename(p) for p in VO.recording_takes("dist_m_1", "celestia", [REPO])] == ["dist_m_1.wav"])
+      [os.path.basename(p) for p in VO.recording_takes("dist_m_1", "celestia", [tenths])] == ["dist_m_1.wav"])
 
 
 class Stand:
@@ -167,7 +172,7 @@ def say(theme, root, lead, metres, bearing, cache=None, text=None, comms=False, 
     sp = VO.Speaker(spawn=lambda: stand, folders=[root], cache_dir=cache or os.path.join(TMP, "cache"))
     sp.comms = comms
     ok = sp.say_direction(lead, metres, bearing, theme, text=text, **kw)
-    end = time.monotonic() + 5
+    end = time.monotonic() + (5 if ok else 0.6)
     while time.monotonic() < end and not [x for x in stand.lines if x[:2] in ("S ", "W ")]:
         time.sleep(0.01)
     time.sleep(0.05)
@@ -230,25 +235,29 @@ b = say("on_air", root, "nearest", 340, 90, cache=cache)[1][0][2:]
 check("the same file", a == b, (a, b))
 check("kept in the cache folder", os.path.dirname(a) == cache or os.path.dirname(a).startswith(cache), a)
 
-print("== any block missing: the whole line is the Windows voice ==")
+print("== any block missing: a recorded voice says none of it (1.201) ==")
 root = os.path.join(TMP, "gap")
 full("on_air", root)
 os.remove(os.path.join(root, "voice", "on_air", "dist_km_2p4.wav"))
 ok, got, _sp = say("on_air", root, "nearest", 2400, 45, text="Nearest deposit, 2.4 kilometres north-east")
-check("one line, spoken", ok and len(got) == 1 and got[0].startswith("S "), got)
-check("with every word of it, not half", got and got[0] == "S Nearest deposit, 2.4 kilometres north-east", got)
-check("and not one recording played", not [x for x in got if x.startswith("W ")])
+check("nothing is said: not half, and not read by another voice", ok is False and got == [], (ok, got))
+ok, got, _sp = say("windows", root, "nearest", 2400, 45, text="Nearest deposit, 2.4 kilometres north-east")
+check("the Windows voice, picked, reads the whole line",
+      ok and got == ["S Nearest deposit, 2.4 kilometres north-east"], got)
+check("and plays no other voice's recording", not [x for x in got if x.startswith("W ")])
 ok, got, _sp = say("on_air", root, "nearest", 340, 90)
 check("a line that does not need the missing block is still joined", got and got[0].startswith("W "), got)
 root2 = os.path.join(TMP, "nolead")
 full("on_air", root2)
 os.remove(os.path.join(root2, "voice", "on_air", "nearest.wav"))
 ok, got, _sp = say("on_air", root2, "nearest", 340, 90)
-check("the lead's recording missing is the same: all Windows voice", got and got[0].startswith("S "), got)
+check("the lead's recording missing is the same: nothing said", ok is False and got == [], got)
 ok, got, _sp = say("on_air", os.path.join(TMP, "none"), "nearest", 340, 90)
-check("no blocks at all: Windows voice", got and got[0].startswith("S "), got)
+check("no blocks at all: nothing said", ok is False and got == [], got)
 ok, got, _sp = say("on_air", root, "nearest", 250000, 90)
-check("a distance with no recording: Windows voice, in words",
+check("a distance with no recording: nothing said", ok is False and got == [], got)
+ok, got, _sp = say("windows", root, "nearest", 250000, 90)
+check("the Windows voice reads it, in words",
       (got and got[0].startswith("S ") and "250 kilometres" in got[0]), got)
 
 print("== blocks that do not match each other ==")
@@ -256,17 +265,17 @@ root = os.path.join(TMP, "mismatch")
 full("on_air", root)
 put("on_air", "dist_km_2p4", root, rate=44100)
 ok, got, _sp = say("on_air", root, "nearest", 2400, 45)
-check("a different sample rate: the whole line is the Windows voice", got and got[0].startswith("S "), got)
+check("a different sample rate: nothing is said, and the fault is kept", got == [] and bool(_sp.problem()), (got, _sp.problem()))
 root = os.path.join(TMP, "broken")
 full("on_air", root)
 open(os.path.join(root, "voice", "on_air", "north_east.wav"), "wb").write(b"not a wave")
 ok, got, _sp = say("on_air", root, "nearest", 2400, 45)
-check("a file that is not a wave: the Windows voice, no crash", got and got[0].startswith("S "), got)
+check("a file that is not a wave: nothing said, no crash", got == [] and bool(_sp.problem()), (got, _sp.problem()))
 root = os.path.join(TMP, "silent")
 full("on_air", root)
 put("on_air", "dist_km_2p4", root, frames=0, pad=40)
 ok, got, _sp = say("on_air", root, "nearest", 2400, 45)
-check("a block that is only silence: the Windows voice", got and got[0].startswith("S "), got)
+check("a block that is only silence: nothing said", got == [] and bool(_sp.problem()), (got, _sp.problem()))
 
 print("== a Speaker that cannot speak ==")
 sp = VO.Speaker(spawn=None, folders=[TMP])
@@ -294,9 +303,9 @@ if A is not None:
         def set_rate(self, rate):
             pass
 
-        def say_text(self, text):
-            self.said.append(("text", text))
-            return True
+        def say_words(self, text, theme=None):
+            self.said.append(("text", text, theme))
+            return VO.reads_words(theme)
 
         def say_direction(self, lead, metres, bearing, theme, place=None, detail=None, text=None):
             self.said.append(("blocks", lead, metres, bearing, theme, text))
@@ -318,8 +327,17 @@ if A is not None:
     app.voice.said.clear()
     view = {"rhino": True, "moving": True,
             "pin": {"key": "pin:2", "name": "Pin 2", "range_m": 80.0, "offset": 0.0}}
-    app.say_directions(view, now=2000.0)
-    check("a pin has no compass bearing: said as before", app.voice.said and app.voice.said[0][0] == "text", app.voice.said)
+    words = app.say_directions(view, now=2000.0)
+    check("a pin has no compass bearing: its words are asked of the voice picked, which has none (1.201)",
+          app.voice.said and app.voice.said[0][0] == "text" and app.voice.said[0][2] == "on_air" and words == "",
+          (app.voice.said, words))
+    app.voice.said.clear()
+    app.settings["voice_theme"] = "windows"
+    app.directions = None
+    words = app.say_directions(view, now=3000.0)
+    check("with Windows voice picked they are read, as before",
+          app.voice.said and app.voice.said[0][:2] == ("text", words) and words.startswith("Pin 2, 80 metres"),
+          (app.voice.said, words))
 
 print("\nFAILURES: %d" % len(fails))
 sys.exit(1 if fails else 0)

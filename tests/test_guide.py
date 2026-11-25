@@ -394,8 +394,8 @@ dep_app.game = State(lat=_HERE[0], lon=_HERE[1], in_srv=True)
 dep_app.follow_deposit(dep_app.game)
 check("in the SRV on a deposit you marked, it is picked - not as a place to go",
       _picks == [("Haematite", False)], _picks)
-check("and the commander is told MINED OUT acts on it",
-      any("MINED OUT" in t for t in dep_app.said), dep_app.said[-1:])
+check("and the commander is told DEPOSIT DEPLETED acts on it",
+      any("DEPOSIT DEPLETED" in t for t in dep_app.said), dep_app.said[-1:])
 dep_app.follow_deposit(dep_app.game)
 check("once - not again every poll", len(_picks) == 1, _picks)
 dep_app.selected = _cop                           # picked by hand meanwhile

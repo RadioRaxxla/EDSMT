@@ -257,6 +257,8 @@ def _app():
     app.signal_choices = lambda: [str(n) for n in range(1, 9)]
     # 1.10040: Find and Settings have a button for the materials the lists offer.
     app.open_materials = lambda: None
+    # 1.201: Settings says where the supporter voices stand (perks.py).
+    app.perks_state = lambda: A.PK.current(app.settings, 0)
     return app
 
 

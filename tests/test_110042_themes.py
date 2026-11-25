@@ -1,7 +1,7 @@
 """1.10042 (G5): Flight controller and Radio Raxxla on-air, wired like Celestia.
 
-Choosing either plays its recordings when they are there and speaks the
-line with the Windows voice when they are not. Every line id the app speaks
+Choosing either plays its recordings when they are there. 1.201: when they
+are not, nothing is said - no other voice reads the line in its place. Every line id the app speaks
 has an entry for both. The list of lines still to record is a function.
 
     python tests/test_110042_themes.py
@@ -57,8 +57,8 @@ class Stand:
 def said(theme, line_id, folders, place=None):
     stand = Stand()
     sp = VO.Speaker(spawn=lambda: stand, folders=folders)
-    sp.say_line(line_id, theme, place=place)
-    end = time.monotonic() + 3
+    sent = sp.say_line(line_id, theme, place=place)
+    end = time.monotonic() + (3 if sent else 0.6)
     while time.monotonic() < end and not [x for x in stand.lines if x[:2] in ("S ", "W ")]:
         time.sleep(0.01)
     sp.close()
@@ -98,11 +98,11 @@ for theme in ("flight_controller", "on_air"):
     check("%s: in the Rhino it still plays the clean file, with no comm sound" % theme,
           len(got) == 1 and got[0].startswith("W ") and "srv" not in got[0], got)
 
-print("== the Windows voice when there is not ==")
+print("== nothing when there is not (1.201) ==")
 for theme in ("flight_controller", "on_air"):
     got = said(theme, "signal_logged", [os.path.join(TMP, "none")])
     words = VO.line_text("signal_logged", theme)
-    check("%s: the words, spoken" % theme, got == ["S " + words] and words, got)
+    check("%s: not said, and not read by another voice" % theme, got == [] and words, got)
 check("the two themes have words of their own",
       VO.line_text("signal_logged", "flight_controller") != VO.line_text("signal_logged", "on_air"))
 
@@ -111,7 +111,7 @@ other = os.path.join(TMP, "b", "voice", "on_air")
 os.makedirs(other)
 open(os.path.join(other, "border_set.wav"), "wb").write(b"RIFF")
 got = said("flight_controller", "border_set", [os.path.join(TMP, "b")])
-check("Flight controller does not play On-air's file", got and got[0].startswith("S "), got)
+check("Flight controller does not play On-air's file, and says nothing", got == [], got)
 
 print("== the list of lines still to record ==")
 folder = os.path.join(TMP, "c", "voice", "on_air")

@@ -334,6 +334,12 @@ if HAVE_DISPLAY:
         click(strip, tab.text_x, strip.winfo_height() / 2)
         check("clicking Find opens Find, lit", app.active_tab == "find" and strip.lit == "find"
               and strip.itemcget(strip.find_withtag("tab-find")[0], "fill") == A.ORANGE)
+        # The keys go to the window Tk believes has the focus. On a PC in use
+        # that is some other program's, and a generated key press is thrown
+        # away, so the focus is taken first (1.201: a build failed here while
+        # the keyboard was in use elsewhere).
+        app.focus_force()
+        pump(2)
         app.event_generate("<F2>")
         pump(3)
         check("F2 brings the map back", app.active_tab == "map" and strip.lit == "map")

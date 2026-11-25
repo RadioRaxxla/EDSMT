@@ -155,10 +155,12 @@ the new one as a deposit of its own.
 on, filed under another number, is listed under it with a **file under**
 button that puts the number right.
 
-**MINED OUT** sets a deposit to Depleted and stamps the note with the date
-and time — `Mined 10/09/2026 01:05`. Press it again next month and it adds
-another line, so the site keeps its history. It is not a delete: the deposit
-stays on the map, with the date it was worked out.
+**Deposit depleted** (one deposit) sets it to Depleted and stamps the note
+with the date and time — `Mined 10/09/2026 01:05`. Press it again next month
+and it adds another line, so the site keeps its history. It is not a delete:
+the deposit stays on the map, labelled **DEPLETED** with the day it was first
+marked (`Periclase dunite  5.53 km  3R  DEPLETED 21 Nov`), until somebody says
+it is back.
 
 **The commodity box filters as you type** and is sorted roughly by worth.
 Typing `bastna` finds Bastnäsite without the umlaut. The ordering is what the
@@ -170,8 +172,10 @@ prices override it where they are available.
 different commodities in it, and points the map at it — the surface
 equivalent of overlapping hotspots.
 
-**Worked out** tells everyone a signal is stripped. It is not a delete: the
-site drops out of results and climbs back as it regenerates.
+**Location depleted** (the whole signal) tells everyone the location is
+stripped, so nobody drives out to it. It is not a delete: the location drops
+out of search results and climbs back as it regenerates. Your own deposits
+in it stay on your map as they are.
 
 **Got one wrong?** Every deposit in the selected signal is listed in the
 left panel with an **edit** button beside it, and you can still double-click
@@ -660,7 +664,7 @@ is worked out. Its buttons:
 |---|---|
 | **Guide me there** | the map and the overlay point at it until you get there, on whatever body it is; the line at the top of the window says where to go first, and **Stop guiding** lets it go. A deposit with no position or body recorded says why it cannot be guided to |
 | **Share** | copies its share line |
-| **Mark depleted** | the same as **MINED OUT**, on this deposit |
+| **Deposit depleted** | the same as **DEPOSIT DEPLETED** in the main window, on this deposit |
 | **Copy position** | copies its latitude and longitude |
 | **Delete** | deletes it from your records, after asking |
 
@@ -694,7 +698,7 @@ Where you are now is in green.
 
 ### The deposit you are on, and the one you are going to
 
-In the SRV, drive onto a deposit you marked and EDSMT picks it — **MINED OUT**,
+In the SRV, drive onto a deposit you marked and EDSMT picks it — **DEPOSIT DEPLETED**,
 **UPDATE** and **Copy to share** then act on it with one click. The four boxes
 on the left (Commodity, Rigs, Amount, Density) are filled in with what is
 recorded for it, so an **UPDATE** starts from there and changes only what you
@@ -704,7 +708,7 @@ STATUS say **GO** with the turn and the range, and TARGETS lists it first,
 until you arrive.
 
 A deposit's details say what it has given: **its own commodity's tonnes**,
-with by-products beside them (not added in). Press **MINED OUT** when it is
+with by-products beside them (not added in). Press **DEPOSIT DEPLETED** when it is
 empty and that figure is filed as what it **holds**; work it again after it
 has grown back and the details say about how much is **left**. A worked-out
 deposit says how long ago it was worked out. How fast deposits grow back is
@@ -915,6 +919,11 @@ voice** says the test line in the voice and rate in the boxes, saved or not.
 Celestia, the Ship computer, the Flight controller and Radio Raxxla on-air
 come recorded: every Basic line in each, free with EDSMT.
 
+**The voice you pick is the only one you hear.** A voice says only what it
+has recorded and is never filled in by another: a line, a distance or a
+question it has no recording of is not said. Windows voice is a voice like
+the rest - it reads words, and only when it is the one picked.
+
 Voice Mode also tells you, once for each thing it is about: a deposit worth
 a lot (one of the five best-paying on the prices known, or the best of all)
 when you mark it or drive onto it; a rich patch when you mark one in a top
@@ -933,7 +942,18 @@ different in a small, medium or large ship, in the Rhino and on foot: EDSMT
 picks the right one from where the game says you are and the ship you are
 in, with nothing to set.
 
-**Answer length** (Celestia only, for now): **Short** is a few words -
+**Supporter voices.** Every voice speaks every line of the Basic pack for
+everyone. Supporters, and Radio Raxxla staff, also get the rest of Celestia:
+her Short and Chatty answers, her later takes, her reactions and asides, the
+voice-pack reminders, and distances and directions in her own voice. Pair this
+computer (Settings → Sharing → Radio Raxxla account) and EDSMT fetches them by
+itself, at start and every few hours; Settings says whether supporter voices
+are on. They come in one download (about 45 MB the first time), so the whole
+voice arrives together, usually inside a minute; nothing else EDSMT does waits
+for it, and the status bar says when they are here. Without them, Short and Chatty answer as Normal does, and she says no
+distances.
+
+**Answer length** (Celestia, with supporter voices): **Short** is a few words -
 "Deposit logged." - **Normal** is her usual lines, and **Chatty** adds to
 them: a different take of a line now and then, a word about what the
 journal shows (the Rhino going out and coming home, a touchdown, a big sale,
@@ -941,7 +961,7 @@ mining locations found, heat, low fuel, a jump) and, when nothing has been
 said or done for a while and nothing is dangerous, an aside about the
 galaxy. None of it comes again inside a few minutes.
 
-**Voice-pack reminders.** If you drive the game by voice through a
+**Voice-pack reminders** (with supporter voices). If you drive the game by voice through a
 VoiceAttack voice pack, Celestia reminds you of the phrase to say at the
 moment the journal shows it is needed: **"Deploy the SRV"** after you land,
 **"Dismiss the ship"** once the Rhino is out and the ship is still sat
@@ -954,10 +974,9 @@ pack (a folder in VoiceAttack's Sounds folder); turn it on or off and it
 stays as you set it. Your voice pack still does the work - EDSMT only
 reminds you what to say.
 
-**Celestia** and the **Ship computer** come recorded: every line of the pack
-is a recording made for EDSMT, shipped with it. The other two are read by
-Windows' own speech until their recordings follow. A recording is played in
-place of the spoken line when there is one: a `.wav` named after the line,
+**Where the recordings are.** Every line of the pack is a recording made for
+EDSMT, shipped with it, for each of the four recorded voices. A recording is
+a `.wav` named after the line,
 in a `voice` folder beside EDSMT or in the data folder, under the voice it
 belongs to - for example `voice\ship_computer\signal_logged.wav`, or for a
 voice with comms, under the place as well:
@@ -965,15 +984,15 @@ voice with comms, under the place as well:
 `srv` or `foot`). A
 recording made for a place is played as it is; otherwise Celestia's own
 recording is given that place's comm sound. The voices are `celestia`,
-`ship_computer`, `flight_controller` and `on_air`. Spoken directions (the
-distance and the clock face) are always read live.
+`ship_computer`, `flight_controller` and `on_air`. Spoken directions on a
+clock face are read by the Windows voice (see below).
 
 **More than one take.** A line may have several recordings: `signal_logged.wav`
 and beside it `signal_logged_2.wav`, `signal_logged_3.wav` and so on are all
 takes of the same line, in any voice. EDSMT plays one of them, never the one
 it played last time for that line and not the last two when there are enough
 to choose from. A line with one recording is played as it always was.
-Celestia comes with seventy such takes of the lines she says most, each
+Supporters get seventy such takes of the lines Celestia says most, each
 said another way; **What did it say?** shows the words of the take you
 heard.
 
@@ -986,9 +1005,10 @@ hundred and forty metres", `dist_km_2p4` "two point four kilometres",
 points (`north`, `north_north_east`, `north_east` and so on round to
 `north_north_west`), so a number is never pieced together word by word.
 Metres are said to the nearest ten, kilometres to a tenth, and from ten
-kilometres to the whole kilometre. Celestia has all of them. If a recording
+kilometres to the whole kilometre. Celestia has all of them with supporter
+voices. If a recording
 the line needs is missing, or the distance is a hundred kilometres or more,
-the whole line is spoken by Windows, never part of it. Settings → Audio says
+the line is not said: never part of it, and never in another voice. Settings → Audio says
 how many lines and blocks the voice picked has recordings for.
 
 **Comm effects** (Celestia and the Flight controller) is on to begin with:
@@ -1013,7 +1033,11 @@ In the Rhino, EDSMT says how far and which way to go on a clock face -
 guided survey's waypoint, else the deposit the scope points at, else the
 nearest rig. It is said whenever that changes, and every so often while you
 are driving (10 seconds to start with, 5 to 60 in Settings), never more than
-one line every 3 seconds, and not over and over once you are on it.
+one line every 3 seconds, and not over and over once you are on it. The
+clock-face words are read by the Windows voice, so they are heard with
+**Windows voice** picked. With a recorded voice picked, the deposit the scope
+points at is said in that voice when it has the recordings - Celestia, with
+supporter voices - and nothing else is said for it.
 
 **Proximity sonar** is tones, no words. In the Rhino, a short tone repeats
 faster and higher as the deposit the scope points at gets nearer: every 2
@@ -1297,27 +1321,30 @@ week.
 ### Keeping the map right
 
 The map is only as good as the last person to check it. When you drive the
-SRV onto a deposit you have marked, EDSMT asks once, on the overlay and by
-voice: Still there? UPDATE or MINED OUT. UPDATE puts the Amount, Density or
-rigs you can see now onto it. MINED OUT marks it worked out and sends the
-tonnes it gave, so everyone can see what a deposit like it holds.
+SRV onto a deposit you have marked, EDSMT asks once, on the overlay, and
+aloud with Windows voice picked: Still there? UPDATE or DEPOSIT DEPLETED. UPDATE puts the Amount,
+Density or rigs you can see now onto it. DEPOSIT DEPLETED marks it worked
+out and sends the tonnes it gave, so everyone can see what a deposit like it
+holds.
 
-Other commanders' finds too. Drive onto another commander's find with
-none of yours under you and EDSMT asks the same, saying whose it is. UPDATE
-says it is still there and MINED OUT that it is worked out; either goes on
+Other commanders' finds too. Drive onto another commander's find with none
+of yours under you and EDSMT asks the same, saying whose it is. UPDATE says
+it is still there and DEPOSIT DEPLETED that it is worked out; either goes on
 the community map for everyone. It is not asked about a find somebody
 reported today, nor one already worked out.
 
 Drive off without answering and EDSMT says so in one line and keeps the
-deposit on a short list (your own deposits only). At the next start a small window offers Still
-there, Mined out or Skip for each one. It never holds the start up, and it
-is not there when the list is empty.
+deposit on a short list (your own deposits only). At the next start a small
+window offers Still there, Deposit depleted or Skip for each one, and Show
+opens the deposit in My sites so you can tell which one it is. It never
+holds the start up, and it is not there when the list is empty.
 
 Each row says which deposit it is, because two deposits of one commodity in
 one location have the same name: its rigs, Amount and Density, where it lies
 from the location's centre, how far it is from you when you are on its body,
-and its position as the Rhino shows it. **Show** picks the deposit in the
-main window, on the map and in the details, and leaves it on the list.
+and its position as the Rhino shows it. **Show** opens the deposit in **My
+sites** with its card and its map, on any body, and picks it on the main map
+when it is on the body you are on. It stays on the list.
 
 A worked-out mark stays until you take it off, or until the first tonne is
 refined there. Once enough commanders have reported how long deposits take

@@ -20,6 +20,7 @@ nothing to the download. Every step is a pure function of the samples, so
 the checks can measure what it does without a sound card.
 """
 import hashlib
+import io
 import math
 import os
 import random
@@ -112,7 +113,8 @@ def ship_place(ship_type):
 
 def read_wav(path):
     """(samples as floats from -1 to 1, mono, and the sample rate). 16-bit
-    PCM only - what the recordings are; stereo is folded to mono."""
+    PCM only - what the recordings are; stereo is folded to mono. `path` may
+    be an open file of the wave's bytes."""
     with wave.open(path, "rb") as handle:
         channels, width, rate = handle.getnchannels(), handle.getsampwidth(), handle.getframerate()
         frames = handle.readframes(handle.getnframes())
@@ -123,6 +125,19 @@ def read_wav(path):
     if channels > 1:
         values = [sum(values[i:i + channels]) / channels for i in range(0, len(values), channels)]
     return [v / 32768.0 for v in values], rate
+
+
+def wav_bytes(samples, rate=OUT_RATE):
+    """Mono 16-bit PCM, as the bytes of a wave file."""
+    data = struct.pack("<%dh" % len(samples),
+                       *(max(-32768, min(32767, int(round(s * 32767.0)))) for s in samples))
+    out = io.BytesIO()
+    with wave.open(out, "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(int(rate))
+        handle.writeframes(data)
+    return out.getvalue()
 
 
 def write_wav(path, samples, rate=OUT_RATE):
@@ -349,18 +364,35 @@ def cache_name(source, place):
     return "%s.%s.%s.wav" % (base, clean_place(place), digest)
 
 
-def cached(source, place, cache_dir):
+def cached(source, place, cache_dir, vault=None):
     """The recording with the place's comm sound: from the cache when it is
     there, else worked out and kept. The plain recording if anything goes
-    wrong - a line is never lost to its effect."""
+    wrong - a line is never lost to its effect.
+
+    With a `vault` (1.201) the source is a supporter's sealed recording: it
+    is opened in memory and what is kept is sealed as well."""
     if not source or not cache_dir:
         return source
     target = os.path.join(cache_dir, clean_place(place), cache_name(source, place))
+    if vault is not None:
+        target += ".rrv"
     if os.path.isfile(target):
         return target
     try:
-        samples, rate = read_wav(source)
-        seed = int(hashlib.sha1(os.path.basename(source).encode("utf-8")).hexdigest()[:8], 16)
-        return write_wav(target, apply(samples, rate, place, seed=seed))
+        if vault is not None:
+            raw = vault.read(source)
+            if not raw:
+                return source
+            samples, rate = read_wav(io.BytesIO(raw))
+        else:
+            samples, rate = read_wav(source)
+        name = os.path.basename(source)
+        if name.endswith(".rrv"):
+            name = name[:-4]
+        seed = int(hashlib.sha1(name.encode("utf-8")).hexdigest()[:8], 16)
+        done = apply(samples, rate, place, seed=seed)
+        if vault is not None:
+            return vault.write(target, wav_bytes(done))
+        return write_wav(target, done)
     except (OSError, ValueError, EOFError, wave.Error, struct.error):
         return source

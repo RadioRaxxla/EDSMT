@@ -202,7 +202,8 @@ check("amount, density, mined, left, price, marked, state",
       all(word in card for word in ("Amount", "Density", "Mined this time", "Left", "Price", "Marked", "State")),
       card)
 names = [b.cget("text") for b in win.card_buttons]
-check("its buttons", names == ["Guide me there", "Share", "Mark depleted", "Copy position", "Delete"], names)
+# 1.201: "Mark depleted" is "Deposit depleted", the main window's name for it.
+check("its buttons", names == ["Guide me there", "Share", "Deposit depleted", "Copy position", "Delete"], names)
 copied = []
 app.clipboard_clear = lambda: None
 app.clipboard_append = lambda text: copied.append(text)
@@ -212,9 +213,9 @@ win.card_action("Copy position")
 check("Copy position is the position", copied and copied[-1] == "10.01, 20.0", copied[-1:])
 win.card_action("Share")
 check("Share is the line another EDSMT takes", copied and copied[-1] == A.share_line(north), copied[-1:])
-win.card_action("Mark depleted")
+win.card_action("Deposit depleted")
 pump()
-check("Mark depleted marks it worked out", A.SV.is_depleted(next(
+check("Deposit depleted marks it worked out", A.SV.is_depleted(next(
     d for d in store.deposits if d["id"] == north["id"]).get("amount")))
 answers.append(False)
 win.show_place("Ega", "Ega A 1", "2")

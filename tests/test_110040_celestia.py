@@ -238,12 +238,15 @@ real_send = speaker._send
 speaker._send = lambda line: said.append(line) or True
 speaker.say_line("rigs_full", "celestia", place="srv")
 speaker.say_line("rigs_full", "celestia", place="foot")
-speaker.say_line("deposit_incomplete", "celestia", place="foot")
+unsaid = speaker.say_line("deposit_incomplete", "celestia", place="foot")
 check("one made for the SRV is played as it is", said and said[0] == "W " + made_for_srv, said[:1])
 check("on foot, the clean one goes for its comm sound", len(said) > 1 and said[1] == ("FX", clean, "foot"),
       said[1:2])
-check("with no recording, her words without the directions",
-      len(said) > 2 and said[2].startswith("S I need all four") and "[" not in said[2], said[2:3])
+check("with no recording she says nothing, and no other voice reads it (1.201)",
+      unsaid is False and len(said) == 2, said[2:3])
+check("her words, for the page and the history, are without the directions",
+      VO.line_text("deposit_incomplete", "celestia").startswith("I need all four")
+      and "[" not in VO.line_text("deposit_incomplete", "celestia"))
 speaker._send = real_send
 speaker.say_line("rigs_full", "celestia", place="ship")
 wrote = []
@@ -280,16 +283,20 @@ if os.path.isdir(pack):
     check("Celestia: her building blocks are all there or none is", there in (set(), blocks),
           sorted(blocks - there)[:5])
     listed |= there
-    check("Celestia: every line and every one of her own recorded, her later takes too, nothing spare",
-          have == sorted(listed), (sorted(listed - set(have))[:5], sorted(set(have) - listed)[:5]))
+    # 1.201: the free install holds one take of every Basic line; her later
+    # takes, Chatty, Short, her own lines and her distances are a supporter's
+    # pack, fetched from the API (packs.py). That they are all recorded is
+    # checked where the pack is kept.
+    check("Celestia: one take of every Basic line, nothing spare",
+          have == sorted(VO.LINES), (sorted(set(VO.LINES) - set(have))[:5], sorted(set(have) - set(VO.LINES))[:5]))
     want = {os.path.join("chatty", "%s-%d.wav" % (line_id, n))
             for line_id, takes in VO.TAKES.items() for n in range(2, len(takes) + 1)}
     want |= {os.path.join("short", "%s.wav" % line_id) for line_id, words in VO.SHORT.items()
              if words != VO.TAKES[line_id][0]}
     found = {os.path.join(sub, n) for sub in ("chatty", "short") if os.path.isdir(os.path.join(pack, sub))
              for n in os.listdir(os.path.join(pack, sub)) if n.endswith(".wav")}
-    check("Celestia: every Chatty take and every Short line that differs recorded, nothing spare",
-          found == want, (sorted(want - found)[:5], sorted(found - want)[:5]))
+    check("Celestia: no Chatty or Short recordings in the free install (they are a supporter's)",
+          found == set(), sorted(found)[:5])
     import wave
     bad = []
     for folder, _dirs, files in os.walk(pack):
@@ -369,6 +376,12 @@ if A is not None:
 
     T0 = 1793860000.0
     app.voice = FakeSpeaker()
+    # 1.201: her hints, reactions and asides are a supporter's extras.
+    app.packs_allowed = lambda: False
+    app.cues, app.pack_hints_found = VC.Cues(), True
+    app.watcher = Reader([{"event": "Touchdown", "PlayerControlled": True, "timestamp": stamp(T0)}])
+    check("without the supporter packs: no reminder", run_cues(app, T0, 40) == [])
+    app.packs_allowed = lambda: True
     app.cues, app.pack_hints_found = VC.Cues(), True
     app.watcher = Reader([{"event": "Touchdown", "PlayerControlled": True, "timestamp": stamp(T0)}])
     said = run_cues(app, T0, 40)

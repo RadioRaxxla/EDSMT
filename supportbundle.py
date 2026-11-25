@@ -42,7 +42,7 @@ TRACE_MAX_BYTES = 2 * 1024 * 1024
 # added: the pattern below catches the rest.
 SECRET_KEYS = {"inara_api_key", "community_token", "discord_webhook",
                "discord_webhooks", "wing_code", "wing_member"}
-_SECRET_NAME = re.compile(r"(token|secret|password|webhook|api_?key|_key$|^key$)", re.I)
+_SECRET_NAME = re.compile(r"(token|grant|secret|password|webhook|api_?key|_key$|^key$)", re.I)
 _WEBHOOK = re.compile(r"https?://(?:[\w.-]+\.)?discord(?:app)?\.com/api/webhooks/\S+", re.I)
 _API_KEY_FIELD = re.compile(r'("?(?:apiKey|api_key|token|Authorization)"?\s*[:=]\s*)"?[^"\s,}]+"?', re.I)
 # Long runs of letters and digits that follow "key=", "token=" and the like in

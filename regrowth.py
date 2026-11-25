@@ -73,6 +73,23 @@ def depleted(deposit):
     return SV.is_depleted((deposit or {}).get("amount"))
 
 
+def tag(deposit):
+    """"DEPLETED 21 Nov" for a deposit marked depleted - the day it was first
+    marked - or "DEPLETED" with no day known; "" for one that is not. What
+    the map and the deposit list put beside its name until somebody says it
+    is back (1.201: a tester saw only a hollow ring and could not tell why)."""
+    if not depleted(deposit):
+        return ""
+    first = first_date(deposit)
+    if first is None:
+        return "DEPLETED"
+    try:
+        day = time.strftime("%d %b", time.localtime(first)).lstrip("0")
+    except (OverflowError, OSError, ValueError):
+        return "DEPLETED"
+    return "DEPLETED " + day
+
+
 def first_date(deposit):
     """When it was first marked depleted, as seconds, or None.
 

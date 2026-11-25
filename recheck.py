@@ -2,7 +2,7 @@
 check (1.10042).
 
   * driving onto a deposit you have marked asks once "Still there? UPDATE or
-    MINED OUT"; leaving without answering is one line, and the deposit goes
+    DEPOSIT DEPLETED"; leaving without answering is one line, and the deposit goes
     on a "visited, not updated" list that waits for the next start;
   * Find's "Due a check": deposits nobody has confirmed for a while, and
     worked-out ones that may be back, nearest first.
@@ -20,7 +20,7 @@ import time as _time
 import regrowth as RG
 import survey as SV
 
-ASK = "Still there? UPDATE or MINED OUT"
+ASK = "Still there? UPDATE or DEPOSIT DEPLETED"
 # Not asked again for a deposit you answered this recently (driving back and
 # forth across one).
 RECENT_S = 600.0
@@ -33,7 +33,7 @@ THEIRS_FRESH_S = 86400.0
 
 def left_line(commodity):
     """The one line when you drive off without answering."""
-    return ("Left the %s deposit without UPDATE or MINED OUT - it is on your "
+    return ("Left the %s deposit without UPDATE or DEPOSIT DEPLETED - it is on your "
             "list to check at the next start." % (commodity or "deposit"))
 
 
@@ -53,7 +53,7 @@ def _seconds(text):
 
 def theirs_line(row):
     """The words when you drive onto another commander's find."""
-    return ("%s's %s deposit: still there? UPDATE or MINED OUT - your answer goes on the "
+    return ("%s's %s deposit: still there? UPDATE or DEPOSIT DEPLETED - your answer goes on the "
             "community map for everyone." % ((row or {}).get("cmdr") or "Another commander",
                                              (row or {}).get("commodity") or "unnamed"))
 
@@ -258,21 +258,22 @@ def visit_lines(deposit, centre_words="", away=None, metres_text=str):
 HOWTO_TITLE = "Keeping the map right"
 HOWTO_WORDS = (
     "The map is only as good as the last person to check it. When you drive "
-    "the SRV onto a deposit you have marked, EDSMT asks once, on the overlay "
-    "and by voice: Still there? UPDATE or MINED OUT. UPDATE puts the Amount, "
-    "Density or rigs you can see now onto it. MINED OUT marks it worked out "
+    "the SRV onto a deposit you have marked, EDSMT asks once, on the overlay, "
+    "and aloud with Windows voice picked: Still there? UPDATE or DEPOSIT DEPLETED. UPDATE puts the Amount, "
+    "Density or rigs you can see now onto it. DEPOSIT DEPLETED marks it worked out "
     "and sends the tonnes it gave, so everyone can see what a deposit like it "
     "holds."
     "\n\n"
     "Other commanders' finds too. Drive onto another commander's find with "
     "none of yours under you and EDSMT asks the same, saying whose it is. "
-    "UPDATE says it is still there and MINED OUT that it is worked out; "
+    "UPDATE says it is still there and DEPOSIT DEPLETED that it is worked out; "
     "either goes on the community map for everyone. It is not asked about a "
     "find somebody reported today, nor one already worked out."
     "\n\n"
     "Drive off without answering and EDSMT says so in one line and keeps the "
     "deposit on a short list (your own deposits only). At the next start a small window offers Still "
-    "there, Mined out or Skip for each one. It never holds the start up, and "
+    "there, Deposit depleted or Skip for each one, and Show opens the deposit in "
+    "My sites so you can tell which one it is. It never holds the start up, and "
     "it is not there when the list is empty."
     "\n\n"
     "A worked-out mark stays until you take it off, or until the first tonne "

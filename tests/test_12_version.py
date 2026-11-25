@@ -40,8 +40,12 @@ check("and 1.20110 as 1.2011", EDO.shown_version("1.20110") == "1.2011")
 check("older ones read as they always did", EDO.shown_version("1.10042") == "1.10042"
       and EDO.shown_version("1.10040") == "1.10040")
 check("nothing odd breaks it", EDO.shown_version("") == "" and EDO.shown_version("2") == "2")
-check("this build is 1.20000 underneath", EDO.APP_VERSION == "1.20000", EDO.APP_VERSION)
-check("and 1.2 to read", EDO.SHOWN_VERSION == "1.2", EDO.SHOWN_VERSION)
+# 1.201: this build's own number moves on; the scheme is what is checked.
+NOW = EDO.APP_VERSION
+SHOWN = EDO.shown_version(NOW)
+check("this build is five digits underneath, 1.20000 or later",
+      bool(__import__("re").fullmatch(r"1\.\d{5}", NOW)) and not EDO.is_newer("1.20000", NOW), NOW)
+check("and short to read", EDO.SHOWN_VERSION == SHOWN and len(SHOWN) < len(NOW), EDO.SHOWN_VERSION)
 check("every older copy is offered it", EDO.is_newer("1.20000", "1.10042")
       and EDO.is_newer("1.20000", "1.10041"))
 check("a plain 1.2 would not have been", not EDO.is_newer("1.2", "1.10042"))
@@ -50,19 +54,19 @@ check("and 1.201 after it is offered to 1.2", EDO.is_newer("1.20100", "1.20000")
 print("== the files that carry the number ==")
 iss = read("build", "installer.iss")
 info = read("build", "version_info.txt")
-check("installer", '#define AppVersion "1.20000"' in iss and "VersionInfoVersion=1.20000.0.0" in iss)
-check("Windows file details (each part under 65,536)", "filevers=(1,20000,0,0)" in info
-      and "'FileVersion', '1.20000.0.0'" in info, info[:300])
+check("installer", '#define AppVersion "%s"' % NOW in iss and "VersionInfoVersion=%s.0.0" % NOW in iss)
+check("Windows file details (each part under 65,536)", "filevers=(1,%d,0,0)" % int(NOW.split(".")[1]) in info
+      and "'FileVersion', '%s.0.0'" % NOW in info and int(NOW.split(".")[1]) < 65536, info[:300])
 check("the patch notes' heading is the one people read",
-      read("CHANGELOG.md").split("\n## ", 1)[1].split("\n", 1)[0].strip() == "1.2")
+      read("CHANGELOG.md").split("\n## ", 1)[1].split("\n", 1)[0].strip() == SHOWN)
 
 print("== the release: tag v1.2, titled EDSMT 1.2 ==")
 import release_notes as RN      # noqa: E402
 import publish_release as PR    # noqa: E402
 check("the notes come from the 1.2 entry", RN.entry("1.2") and RN.entry("1.20000") == RN.entry("1.2"))
-ok = subprocess.run([sys.executable, os.path.join(REPO, "build", "release_notes.py"), "v1.2"],
-                    capture_output=True, text=True)
-check("the tag v1.2 is this build", ok.returncode == 0 and "1.2" in ok.stdout, ok.stderr)
+ok = subprocess.run([sys.executable, os.path.join(REPO, "build", "release_notes.py"), "v" + SHOWN],
+                    capture_output=True, text=True, encoding="utf-8")
+check("the tag v%s is this build" % SHOWN, ok.returncode == 0 and ("/v%s/" % SHOWN) in ok.stdout, ok.stderr)
 bad = subprocess.run([sys.executable, os.path.join(REPO, "build", "release_notes.py"), "v1.3"],
                      capture_output=True, text=True)
 check("another tag is refused", bad.returncode != 0)

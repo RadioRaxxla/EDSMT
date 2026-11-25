@@ -68,7 +68,7 @@ def wait_for(test, seconds=5.0):
 print("== the speaker keeps what it said ==")
 speaker = VO.Speaker(spawn=Sink)
 check("nothing said, nothing kept", speaker.history() == [])
-speaker.say_line("online", "flight_controller")
+speaker.say_line("online", "windows")      # 1.201: a voice that reads words
 speaker.say_text("Platinum, 340 metres, two o'clock")
 words = [w for _t, w in speaker.history()]
 check("newest first", words[0] == "Platinum, 340 metres, two o'clock" and "online" in words[1].lower(), words)

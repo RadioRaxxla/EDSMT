@@ -540,6 +540,9 @@ com = app.fields["commodity"]
 ce = entry_of(com)
 ce.focus_force(); settle(4)
 sugg = app._suggest_commodity
+# Waited for, not counted in loops: on a busy PC the list opened a moment
+# after the fourth loop and the check below it failed (25 Nov).
+settle_until(lambda: sugg.visible())
 check("clicking into the commodity box opens its list", sugg.visible())
 for ch in "bast":
     press(ce, ch, ch)
@@ -577,6 +580,7 @@ check("and Shift-Tab goes back up", app.focus_get() == order[1], str(app.focus_g
 
 rigs = app.fields["rigs"]
 entry_of(rigs).focus_force(); settle(4)
+settle_until(lambda: rigs.suggest.visible())
 check("a box with a fixed list opens it on focus too",
       rigs.suggest.visible())
 _rows = [rigs.suggest.listbox.get(i).strip() for i in range(rigs.suggest.listbox.size())]

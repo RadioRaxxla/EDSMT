@@ -55,7 +55,7 @@ NOW_TAG = "now"      # the live status for the Twitch bot (nowstatus.py)
 RIBBONS_TAG = "ribbons"   # 1.2: a commander's ribbon steps, for the voice
 
 APP_NAME = "EDSMT"
-APP_VERSION = "1.20000"
+APP_VERSION = "1.20100"
 # The worker tag the bodies of a system come back under.
 BODIES_TAG = "bodies"
 # How a deposit was rigged (#218): sent, and the best ones read back.

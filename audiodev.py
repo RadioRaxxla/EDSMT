@@ -144,6 +144,14 @@ DEVICE_SPEECH_SCRIPT = "\n".join((
     "      }",
     "    }",
     "    elseif ($what -eq 'W') { PlayFile $rest }",
+    # 1.201: a recording handed over as its sound. This player needs a file,
+    # so it is written for the moment it plays and taken away again.
+    "    elseif ($what -eq 'B') {",
+    "      $tmp = Join-Path ([System.IO.Path]::GetTempPath()) "
+    "('edsmt-play-' + [guid]::NewGuid().ToString('N') + '.wav')",
+    "      try { [System.IO.File]::WriteAllBytes($tmp, [Convert]::FromBase64String($rest)); PlayFile $tmp }",
+    "      finally { Remove-Item -LiteralPath $tmp -ErrorAction SilentlyContinue }",
+    "    }",
     "  } catch {",
     "    if ($what -eq 'D') { $device = $null; [Console]::Error.WriteLine('E D ' + (Why $_)) }",
     "    else { [Console]::Error.WriteLine('E ' + $what + ' ' + (Why $_)) }",

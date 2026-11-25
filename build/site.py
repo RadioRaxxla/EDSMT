@@ -109,17 +109,40 @@ def fill(page, marker, replacement):
                   page, flags=re.S)
 
 
-def headline():
-    """The first real line of the latest changelog entry, for the banner."""
-    for line in latest_entry().splitlines():
-        line = line.strip()
+# A heading that only names a section says nothing about the version.
+BARE_HEADINGS = ("fixed", "changed", "new", "also", "improved", "notes")
+
+
+def headline_of(entry):
+    """A changelog entry in one line, for the banner and for the app's
+    "EDSMT x is out - ..." message: its first heading, unless that is only a
+    section's name (Fixed, Changed), and then the first sentence of the
+    paragraph the entry opens with, joined across its line breaks."""
+    lines = [line.strip() for line in str(entry or "").splitlines()]
+    for line in lines:
         if line.startswith("### "):
-            return line[4:].strip()
-    for line in latest_entry().splitlines():
-        line = line.strip()
-        if line and not line.startswith("#"):
-            return line.rstrip(".")
-    return ""
+            words = line[4:].strip()
+            if words.lower() not in BARE_HEADINGS:
+                return words
+            break
+    lead = []
+    for line in lines:
+        if line.startswith("#") or line.startswith("- "):
+            if lead:
+                break
+            continue
+        if not line:
+            if lead:
+                break
+            continue
+        lead.append(line)
+    first = re.split(r"(?<=[.!?])\s", " ".join(lead), maxsplit=1)[0]
+    return first.rstrip(".")
+
+
+def headline():
+    """The latest changelog entry in one line (headline_of)."""
+    return headline_of(latest_entry())
 
 
 # The two downloads, by the name they have in upload\ and on the website.
